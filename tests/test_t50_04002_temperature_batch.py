@@ -9,6 +9,9 @@ from cal_translator.formats.t50_04002.temperature_extractor import (
 from cal_translator.formats.t50_04002.temperature_workbook_writer import (
     temperature_result_matrix,
 )
+from cal_translator.formats.t50_04002.temperature_workbook_writer_v2 import (
+    _percent_equivalent,
+)
 from cal_translator.pdf.text_extractor import PdfPageText
 
 
@@ -55,3 +58,9 @@ def test_temperature_profile_requires_three_pdf_pages() -> None:
     profile = _load_profile()
     assert profile["measurement_kind"] == "temperature"
     assert profile["pdf_validation"]["expected_pages"] == 3
+
+
+def test_percentage_text_matches_excel_internal_fraction() -> None:
+    assert _percent_equivalent("1%", 0.01) is True
+    assert _percent_equivalent("0,5%", 0.005) is True
+    assert _percent_equivalent("1%", 1.0) is False
