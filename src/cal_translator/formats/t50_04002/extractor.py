@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable
 
@@ -16,6 +17,8 @@ from cal_translator.models import (
 from cal_translator.pdf.text_extractor import PdfPageText, extract_pdf_text
 
 _FORMAT_ID = "T50-04002"
+_EXPECTED_RESULT_ROWS = 72
+_ROWS_PER_CHANNEL = 24
 _VALUE = r"[-+]?\d+(?:[.,]\d+)?\s*(?:m?Ω|Ω)"
 _RESULT_RE = re.compile(
     rf"^(?:(?P<range>\d+(?:[.,]\d+)?\s*Ω\s*/\s*\d+(?:[.,]\d+)?\s*A)\s+)?"
@@ -37,32 +40,18 @@ def _match(text: str, pattern: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def _value_after(lines: list[str], marker: str) -> str | None:
-    try:
-        index = next(i for i, line in enumerate(lines) if marker.casefold() in line.casefold())
-    except StopIteration:
-        return None
-    for candidate in lines[index + 1 : index + 8]:
-        if candidate and candidate.casefold() not in {
-            "description",
-            "manufacturer",
-            "serial number",
-            "type",
-            "customer number",
-            "customer",
-            "street address",
-            "city",
-            "order number",
-        }:
-            return candidate
-    return None
+def _decimal(value: str) -> Decimal:
+    return Decimal(value.replace(",", "."))
 
 
 def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) -> None:
     text = page.text
     lines = _normalized_lines(text)
 
-    certificate.certificate_number = _match(text, r"(?:Número de certificado|Certificate number)\s*:\s*(CAL-\d+)")
+    certificate.certificate_number = _match(
+        text,
+        r"(?:Número de certificado|Certificate number)\s*:\s*(CAL-\d+)",
+    )
     certificate.internal_code = _match(text, r"Código Interno\s*:\s*([^\r\n]+)")
 
     certificate.equipment = EquipmentData(
@@ -82,25 +71,36 @@ def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) ->
 
     dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text)
     if len(dates) >= 3:
-        certificate.reception_date = dates[0]
-        certificate.calibration_date = dates[1]
-        certificate.issue_date = dates[2]
+        # In this controlled layout, PyMuPDF emits calibration and issue dates
+        # before the reception date because of their drawing positions.
+        certificate.calibration_date = dates[0]
+        certificate.issue_date = dates[1]
+        certificate.reception_date = dates[2]
     else:
         certificate.extraction_warnings.append("Expected three ISO dates on page 1.")
 
-    environmental = re.findall(r"(\d+[.,]\d+)\s*°C\s+(\d+)\s*%", text)
+    environmental = re.findall(r"(\d+[.,]\d+)\s*°C\s+(\d+[.,]?\d*)\s*%", text)
     if len(environmental) >= 2:
-        certificate.environmental_conditions = EnvironmentalConditions(
-            maximum_temperature=f"{environmental[0][0]} °C",
-            maximum_relative_humidity=f"{environmental[0][1]} %",
-            minimum_temperature=f"{environmental[1][0]} °C",
-            minimum_relative_humidity=f"{environmental[1][1]} %",
-        )
+        try:
+            temperatures = sorted(environmental, key=lambda item: _decimal(item[0]))
+            humidities = sorted(environmental, key=lambda item: _decimal(item[1]))
+            certificate.environmental_conditions = EnvironmentalConditions(
+                maximum_temperature=f"{temperatures[-1][0]} °C",
+                minimum_temperature=f"{temperatures[0][0]} °C",
+                maximum_relative_humidity=f"{humidities[-1][1]} %",
+                minimum_relative_humidity=f"{humidities[0][1]} %",
+            )
+        except InvalidOperation:
+            certificate.extraction_warnings.append("Environmental values could not be ordered numerically.")
+    else:
+        certificate.extraction_warnings.append("Expected two environmental condition rows on page 1.")
 
     method_start = next((i for i, line in enumerate(lines) if line == "No"), None)
     method_end = next((i for i, line in enumerate(lines) if line.startswith("Temperatura máxima")), None)
     if method_start is not None and method_end is not None and method_start < method_end:
         certificate.calibration_method = " ".join(lines[method_start + 1 : method_end])
+    else:
+        certificate.extraction_warnings.append("Calibration method block was not delimited.")
 
 
 def _extract_traceability(page: PdfPageText) -> list[TraceabilityEntry]:
@@ -116,8 +116,7 @@ def _extract_traceability(page: PdfPageText) -> list[TraceabilityEntry]:
     row_re = re.compile(
         r"^(AEG|WLN 9|DRS-900)\s+(\d+)\s+(SET-GAT|SET-GAD)\s+([A-Z0-9-]+)\s+(\d{4}-\d{2}-\d{2})$"
     )
-    matched_rows = [row_re.match(line) for line in lines]
-    matched_rows = [match for match in matched_rows if match]
+    matched_rows = [match for line in lines if (match := row_re.match(line))]
     for equipment, match in zip(equipment_names, matched_rows):
         entries.append(
             TraceabilityEntry(
@@ -135,41 +134,71 @@ def _extract_traceability(page: PdfPageText) -> list[TraceabilityEntry]:
 def _result_lines(pages: Iterable[PdfPageText]) -> list[str]:
     lines: list[str] = []
     for page in pages:
-        if page.page_number < 3:
-            continue
-        lines.extend(_normalized_lines(page.text))
+        if page.page_number >= 3:
+            lines.extend(_normalized_lines(page.text))
     return lines
 
 
+def _channel_for_index(index: int) -> str:
+    channel_index = index // _ROWS_PER_CHANNEL
+    return ("A", "B", "C")[channel_index] if channel_index < 3 else "UNKNOWN"
+
+
 def _extract_results(pages: list[PdfPageText]) -> list[ResultRow]:
-    rows: list[ResultRow] = []
-    channel = ""
+    parsed: list[dict[str, str | None]] = []
     pending_range: str | None = None
 
     for line in _result_lines(pages):
-        upper = line.upper()
-        if upper in {"CANAL A", "CANAL B", "CANAL C"}:
-            channel = upper[-1]
-            continue
         match = _RESULT_RE.match(line.replace("Ω", "Ω"))
         if not match:
             continue
         if match.group("range"):
             pending_range = match.group("range")
-        if not channel:
-            channel = "A"
+        parsed.append(
+            {
+                "range": match.group("range") or pending_range,
+                "specified": match.group("specified"),
+                "measured": match.group("measured"),
+                "bias": match.group("bias"),
+                "uncertainty": match.group("uncertainty"),
+                "coverage": match.group("coverage"),
+            }
+        )
+
+    rows: list[ResultRow] = []
+    for index, values in enumerate(parsed):
         rows.append(
             ResultRow(
-                channel=channel,
-                range=match.group("range") or pending_range,
-                specified_value=match.group("specified"),
-                average_measured_value=match.group("measured"),
-                bias=match.group("bias"),
-                expanded_uncertainty=match.group("uncertainty"),
-                coverage_factor=match.group("coverage"),
+                channel=_channel_for_index(index),
+                range=values["range"],
+                specified_value=str(values["specified"]),
+                average_measured_value=str(values["measured"]),
+                bias=str(values["bias"]),
+                expanded_uncertainty=str(values["uncertainty"]),
+                coverage_factor=str(values["coverage"]),
             )
         )
     return rows
+
+
+def _extract_notes(page: PdfPageText) -> list[str]:
+    lines = _normalized_lines(page.text)
+    notes: dict[int, list[str]] = {}
+    current_number: int | None = None
+
+    for line in lines:
+        match = re.match(r"^(\d+)\.\s*(.*)$", line)
+        if match:
+            current_number = int(match.group(1))
+            notes[current_number] = [match.group(2)]
+            continue
+        if current_number is not None:
+            if line.startswith("** Fin del certificado") or line.startswith("Unrestricted Formato Base"):
+                current_number = None
+            else:
+                notes[current_number].append(line)
+
+    return [f"{number}. {' '.join(notes[number]).strip()}" for number in sorted(notes)]
 
 
 def extract_certificate(pdf_path: Path) -> CalibrationCertificate:
@@ -179,10 +208,17 @@ def extract_certificate(pdf_path: Path) -> CalibrationCertificate:
         certificate.extraction_warnings.append("PDF contains no pages.")
         return certificate
 
+    source_format = _match("\n".join(page.text for page in pages), r"Código Documento\s*:\s*(T50-\d+)")
+    if source_format != _FORMAT_ID:
+        certificate.extraction_warnings.append(
+            f"Expected source format {_FORMAT_ID}, found {source_format or 'unknown'}."
+        )
+
     _extract_page_one(pages[0], certificate)
     if len(pages) >= 2:
         certificate.traceability = _extract_traceability(pages[1])
     certificate.results = _extract_results(pages)
+    certificate.notes = _extract_notes(pages[-1])
 
     if certificate.certificate_number is None:
         certificate.extraction_warnings.append("Certificate number was not extracted.")
@@ -190,10 +226,20 @@ def extract_certificate(pdf_path: Path) -> CalibrationCertificate:
         certificate.extraction_warnings.append(
             f"Expected 5 traceability entries, extracted {len(certificate.traceability)}."
         )
-    if len(certificate.results) != 72:
+    if len(certificate.results) != _EXPECTED_RESULT_ROWS:
         certificate.extraction_warnings.append(
-            f"Expected 72 result rows for CAL-13078, extracted {len(certificate.results)}."
+            f"Expected {_EXPECTED_RESULT_ROWS} result rows for CAL-13078, extracted {len(certificate.results)}."
         )
+
+    channel_counts = {
+        channel: sum(row.channel == channel for row in certificate.results)
+        for channel in ("A", "B", "C")
+    }
+    for channel, count in channel_counts.items():
+        if count != _ROWS_PER_CHANNEL:
+            certificate.extraction_warnings.append(
+                f"Expected {_ROWS_PER_CHANNEL} rows for channel {channel}, extracted {count}."
+            )
     return certificate
 
 
