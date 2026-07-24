@@ -10,7 +10,7 @@ from cal_translator.formats.t50_04002.validate_template import (
     validate_template,
     write_validation_report,
 )
-from cal_translator.formats.t50_04002.workbook_writer import build_workbook_prototype
+from cal_translator.formats.t50_04002.workbook_writer_v2 import build_workbook_prototype
 
 
 def _add_template_arguments(parser: argparse.ArgumentParser) -> None:
