@@ -1,0 +1,169 @@
+format_id: T50-04002
+locale: en-US
+profile_version: 1
+
+static_cells:
+  - {sheet: Información, address: B3, source: "Certificado de Calibración", target: "Calibration Certificate"}
+  - {sheet: Información, address: B4, source: "Calibration certificate", target: null}
+  - {sheet: Información, address: B10, source: "Datos del Equipo", target: "Equipment Information"}
+  - {sheet: Información, address: B11, source: "Descripción", target: "Description"}
+  - {sheet: Información, address: B12, source: "Description", target: null}
+  - {sheet: Información, address: B13, source: "Fabricante", target: "Manufacturer"}
+  - {sheet: Información, address: F13, source: "Número de Serie", target: "Serial Number"}
+  - {sheet: Información, address: B14, source: "Manufacturer", target: null}
+  - {sheet: Información, address: F14, source: "Serial Number", target: null}
+  - {sheet: Información, address: B15, source: "Modelo", target: "Model"}
+  - {sheet: Información, address: F15, source: "Identificación del cliente", target: "Customer Number"}
+  - {sheet: Información, address: B16, source: "Type", target: null}
+  - {sheet: Información, address: F16, source: "Customer number", target: null}
+  - {sheet: Información, address: B17, source: "Información del cliente", target: "Customer Information"}
+  - {sheet: Información, address: B18, source: "Nombre del cliente", target: "Customer Name"}
+  - {sheet: Información, address: B19, source: "Customer", target: null}
+  - {sheet: Información, address: B20, source: "Dirección / Street address", target: "Address"}
+  - {sheet: Información, address: B21, source: "Ciudad / City", target: "City"}
+  - {sheet: Información, address: B22, source: "Número de pedido", target: "Order Number"}
+  - {sheet: Información, address: B23, source: "Order number", target: null}
+  - {sheet: Información, address: B24, source: "Método de calibración", target: "Calibration Method"}
+  - {sheet: Información, address: B25, source: "Calibration method", target: null}
+  - {sheet: Información, address: B33, source: "Autorizado por", target: "Authorized by"}
+  - {sheet: Información, address: B34, source: "Authorized by", target: null}
+  - {sheet: Información, address: B41, source: "Condiciones Ambientales", target: "Environmental Conditions"}
+  - {sheet: Información, address: B42, source: "Environmental conditions", target: null}
+  - {sheet: Información, address: B43, source: "Temperatura máxima", target: "Maximum Temperature"}
+  - {sheet: Información, address: F43, source: "Humedad Relativa máxima", target: "Maximum Relative Humidity"}
+  - {sheet: Información, address: B44, source: "Temperatura mínima", target: "Minimum Temperature"}
+  - {sheet: Información, address: F44, source: "Humedad Relativa mínima", target: "Minimum Relative Humidity"}
+  - {sheet: Información, address: B46, source: "Fecha de Recepción", target: "Reception Date"}
+  - {sheet: Información, address: F46, source: "Fecha de Calibración", target: "Calibration Date"}
+  - {sheet: Información, address: B47, source: "Reception date", target: null}
+  - {sheet: Información, address: F47, source: "Calibration date", target: null}
+  - {sheet: Información, address: B48, source: "Fecha de emisión", target: "Issue Date"}
+  - {sheet: Información, address: B49, source: "Date of issue", target: null}
+  - {sheet: Información, address: B52, source: "Incertidumbre de Medición", target: "Measurement Uncertainty"}
+  - {sheet: Información, address: B53, source: "Uncertainty of Measurement", target: null}
+  - {sheet: Información, address: B62, source: "Trazabilidad", target: "Traceability"}
+  - {sheet: Información, address: B63, source: "Traceability", target: null}
+  - {sheet: Información, address: B68, source: "Equipo", target: "Equipment"}
+  - {sheet: Información, address: D68, source: "Tipo", target: "Type"}
+  - {sheet: Información, address: E68, source: "Número Interno", target: "Internal Number"}
+  - {sheet: Información, address: F68, source: "Calibrado por", target: "Calibrated By"}
+  - {sheet: Información, address: G68, source: "No. Certificado", target: "Certificate No."}
+  - {sheet: Información, address: H68, source: "Fecha Calibración", target: "Calibration Date"}
+  - {sheet: Información, address: B75, source: "Resultados de calibración", target: "Calibration Results"}
+  - {sheet: Información, address: B76, source: "Results Calibration", target: null}
+
+  - {sheet: Resultados, address: B3, source: "Certificado de calibración", target: "Calibration Certificate"}
+  - {sheet: Resultados, address: B4, source: "Calibration certificate", target: null}
+  - {sheet: Resultados, address: B7, source: "Rango", target: "Range"}
+  - {sheet: Resultados, address: C7, source: "Valor especificado", target: "Specified Value"}
+  - {sheet: Resultados, address: D7, source: "Valor Promedio Medido", target: "Average Measured Value"}
+  - {sheet: Resultados, address: E7, source: "Sesgo", target: "Bias"}
+  - {sheet: Resultados, address: F7, source: "Error Máximo Permitido", target: "Maximum Permissible Error"}
+  - {sheet: Resultados, address: G7, source: "Incertidumbre expandida", target: "Expanded Uncertainty"}
+  - {sheet: Resultados, address: H7, source: "Factor de cobertura k", target: "Coverage Factor k"}
+  - {sheet: Resultados, address: I7, source: "CMC Alcance", target: "CMC Scope"}
+  - {sheet: Resultados, address: J7, source: "Pasa -No Pasa", target: "Pass/Fail"}
+  - {sheet: Resultados, address: B8, source: "Medición de Resistencia", target: "Resistance Measurement"}
+  - {sheet: Resultados, address: B9, source: "CANAL A", target: "CHANNEL A"}
+  - {sheet: Resultados, address: B34, source: "CANAL B", target: "CHANNEL B"}
+  - {sheet: Resultados, address: B59, source: "CANAL C", target: "CHANNEL C"}
+  - {sheet: Resultados, address: B84, source: "Notas", target: "Notes"}
+  - {sheet: Resultados, address: B85, source: "Notes", target: null}
+  - {sheet: Resultados, address: B97, source: "Observaciones", target: "Observations"}
+  - {sheet: Resultados, address: B98, source: "Observations", target: null}
+  - {sheet: Resultados, address: B102, source: "**   FIN DEL CERTIFICADO  **", target: "**   END OF CERTIFICATE   **"}
+
+static_paragraphs:
+  measurement_uncertainty:
+    sheet: Información
+    address: B54
+    source: |
+      La incertidumbre de medición reportada fue estimada de acuerdo a la Guía para la Expresión de la Incertidumbre de Medida (GUM).
+
+      La incertidumbre expandida  de la medición reportada en la tabla de resultados se establece como la incertidumbre estándar de medición multiplicada con el factor de cobertura k y la probabilidad de cobertura, la cual debe ser aproximada al 95,45% y no menor a este valor.
+    target: |
+      The reported measurement uncertainty was estimated in accordance with the Guide to the Expression of Uncertainty in Measurement (GUM).
+
+      The expanded measurement uncertainty reported in the results table is obtained by multiplying the standard measurement uncertainty by the coverage factor k. The associated coverage probability is approximately 95.45% and shall not be lower than this value.
+  traceability_intro:
+    sheet: Información
+    address: B64
+    source: "La calibración se realiza por comparación con patrones de referencia que mantienen sus medidas trazables al sistema internacional de acuerdo a los certificados descritos en la siguiente tabla:"
+    target: "The calibration is performed by comparison with reference standards whose measurements are traceable to the International System of Units (SI), in accordance with the certificates listed in the following table:"
+  result_note_1:
+    sheet: Información
+    address: B77
+    source: "1. El sesgo se determino entre el promedio de las lecturas con respecto a la lectura del instrumento patrón."
+    target: "1. The bias was determined as the difference between the average of the readings and the reference instrument reading."
+  result_note_2:
+    sheet: Información
+    address: B79
+    source: "2. El error máximo permitido esta dada por los valores de exactitud mostrados en el manual del fabricante."
+    target: "2. The maximum permissible error is based on the accuracy values specified in the manufacturer's manual."
+
+dynamic_text:
+  customer_name:
+    source: "SEDT Campo de pruebas Distribución"
+    target: "SEDT Distribution Test Field"
+  customer_address:
+    source: "km 8,5 Autopista Medellín - Costado Sur"
+    target: "Medellín Highway, km 8.5 - South Side"
+  calibration_method:
+    source: "La calibración de medidores de resistencia , se lleva a cabo por método directo o por comparación en los puntos indicados en la EURAMET CG-15 Guía sobre la calibración de multímetros digitales (Guidelines on the Calibration of Digital Multimeters). Versión 3 (02/2015), siguiendo las instrucciones del fabricante que figuran en el manual del usuario. Las medidas de resistencia se realiza a 4 hilos. Antes de la ejecución de las medidas indicadas en el presente certificado, se realizó con éxito si aplica un procedimiento de auto test en el instrumento. Y no se ha realizado ningún procedimiento de ajuste. Los tiempos de estabilidad y de condicionamiento térmico del medidor se realizaron de acuerdo al manual del fabricante del equipo bajo prueba. Los resultados informados en este certificado se refieren a la condición del instrumento en la fecha de calibración y no tienen ninguna implicación con respecto a la estabilidad a largo plazo del instrumento."
+    target: |
+      The calibration of resistance meters is performed using the direct method or by comparison at the points specified in EURAMET Calibration Guide No. 15, Guidelines on the Calibration of Digital Multimeters, Version 3 (02/2015), following the manufacturer's instructions provided in the user manual.
+
+      Resistance measurements are performed using a four-wire configuration.
+
+      Before the measurements reported in this certificate were performed, the instrument's self-test procedure, when applicable, was successfully completed. No adjustment procedure was performed.
+
+      The meter stabilization and thermal conditioning times were established in accordance with the manufacturer's manual for the equipment under test.
+
+      The results reported in this certificate refer to the condition of the instrument on the calibration date and do not imply anything regarding its long-term stability.
+  traceability_equipment:
+    "Resistencia de 0,1 mΩ": "0.1 mΩ Resistance Standard"
+    "Resistencia de 100 mΩ": "100 mΩ Resistance Standard"
+    "Resistencia de 10 mΩ": "10 mΩ Resistance Standard"
+    "Resistencia de 1 mΩ": "1 mΩ Resistance Standard"
+    "High Power Resistance Substituter": "High Power Resistance Substituter"
+  notes:
+    "1. Estos resultados corresponden únicamente a la calibración del equipo descrito.": "1. These results apply solely to the calibration of the equipment described."
+    "2. El certificado de calibración solo podra circular como documento completo y no podra ser modificado sin nuestra autorización": "2. This calibration certificate may only be circulated as a complete document and may not be modified without our authorization."
+    "3. Los certificados sin firma y sello no tendrán validez.": "3. Certificates without a signature and stamp are not valid."
+    "4. Este certificado no debe ser reproducido sin aprobación escrita del laboratorio.": "4. This certificate may not be reproduced without the laboratory's written approval."
+    "5. Los resultados reportados corresponden al momento y a las condiciones en las cuales se realizaron las pruebas mencionadas": "5. The reported results correspond to the time and conditions under which the referenced tests were performed."
+    "6. Para la utilización de este instrumento se debe tener en cuenta los resultados de esta calibración. El usuario determina de acuerdo a la tolerancia establecida para el proceso de medición con el instrumento si le son utiles los resultados obtenidos.": "6. When using this instrument, the results of this calibration must be taken into account. Based on the tolerance established for the measurement process, the user shall determine whether the results obtained are suitable for use with the instrument."
+    "7. Servicio prestado en las instalaciones del laboratorio de metrología en Siemens Energy SAS, Tenjo - Cundinamarca.": "7. Service performed at the Siemens Energy SAS metrology laboratory facilities in Tenjo, Cundinamarca."
+
+header_footer_replacements:
+  - {source: "Certificado De Calibración", target: "Calibration Certificate"}
+  - {source: "<Restringido>", target: "<Restricted>"}
+  - {source: "Formato Base", target: "Base Form"}
+  - {source: "No Puede ser copiado o reproducido", target: "May not be copied or reproduced"}
+  - {source: "sin autorización del área de Calidad", target: "without authorization from Quality"}
+  - {source: "y/o Business Excellence", target: "and/or Business Excellence"}
+  - {source: "Código Documento", target: "Document Code"}
+  - {source: "versión", target: "version"}
+  - {source: "Página &P de &N", target: "Page &P of &N"}
+
+pdf_validation:
+  expected_pages: 5
+  required_phrases:
+    - "Calibration Certificate"
+    - "Equipment Information"
+    - "Calibration Method"
+    - "Measurement Uncertainty"
+    - "Traceability"
+    - "Resistance Measurement"
+    - "CHANNEL A"
+    - "CHANNEL B"
+    - "CHANNEL C"
+    - "Notes"
+    - "END OF CERTIFICATE"
+  forbidden_phrases:
+    - "Certificado de Calibración"
+    - "Datos del Equipo"
+    - "Método de calibración"
+    - "Incertidumbre de Medición"
+    - "Medición de Resistencia"
+    - "FIN DEL CERTIFICADO"
