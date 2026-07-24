@@ -5,6 +5,26 @@ import logging
 from pathlib import Path
 
 from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
+from cal_translator.formats.t50_04002.validate_template import (
+    validate_template,
+    write_validation_report,
+)
+
+
+def _add_template_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--template", type=Path, required=True, help="Path to the source Excel template")
+    parser.add_argument(
+        "--format",
+        dest="format_id",
+        required=True,
+        help="Controlled document format, e.g. T50-04002",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Directory for JSON and Markdown reports",
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -17,9 +37,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "inspect-template",
         help="Inspect an Excel certificate template through Microsoft Excel COM without modifying it.",
     )
-    inspect_parser.add_argument("--template", type=Path, required=True, help="Path to the source Excel template")
-    inspect_parser.add_argument("--format", dest="format_id", required=True, help="Controlled document format, e.g. T50-04002")
-    inspect_parser.add_argument("--output", type=Path, required=True, help="Directory for JSON and Markdown inventory reports")
+    _add_template_arguments(inspect_parser)
+
+    validate_parser = subparsers.add_parser(
+        "validate-template",
+        help="Validate an Excel template against its controlled format contract without modifying it.",
+    )
+    _add_template_arguments(validate_parser)
 
     return parser
 
@@ -43,6 +67,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- Worksheets: {inventory['template']['worksheets_count']}")
             print(f"- Inventory schema: {inventory['schema_version']}")
             return 0
+
+        if args.command == "validate-template":
+            report = validate_template(args.template, args.format_id)
+            json_path, markdown_path = write_validation_report(report, args.output)
+            print("Template validation completed")
+            print(f"- JSON: {json_path.resolve()}")
+            print(f"- Markdown: {markdown_path.resolve()}")
+            print(f"- Valid: {str(report['valid']).lower()}")
+            print(f"- Errors: {len(report['errors'])}")
+            print(f"- Warnings: {len(report['warnings'])}")
+            print(f"- Checks: {len(report['checks'])}")
+            return 0 if report["valid"] else 1
     except (FileNotFoundError, RuntimeError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
 
