@@ -48,11 +48,17 @@ class ResultRow:
     bias: str
     expanded_uncertainty: str
     coverage_factor: str
+    maximum_permissible_error: str | None = None
+    cmc: str | None = None
+    pass_fail: str | None = None
+    tur: str | None = None
+    tar: str | None = None
 
 
 @dataclass(slots=True)
 class CalibrationCertificate:
     format_id: str
+    schema_version: int = 1
     certificate_number: str | None = None
     internal_code: str | None = None
     equipment: EquipmentData = field(default_factory=EquipmentData)
