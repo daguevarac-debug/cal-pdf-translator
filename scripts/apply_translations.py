@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import argparse
+import json
 import logging
 import re
 import sys
@@ -75,6 +76,12 @@ class FontSpec:
     fontfile: str | None
 
 
+@dataclass(slots=True)
+class FitResult:
+    fits: bool
+    proposed_size: float
+
+
 def setup_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -88,6 +95,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("excel_path", type=Path, help="Path to reviewed Excel file")
     parser.add_argument("--sheet", default="translation_ready", help="Worksheet name with translation units")
     parser.add_argument("--output", type=Path, default=None, help="Output PDF path")
+    parser.add_argument("--dry-run", action="store_true", help="Run preflight checks only and generate report JSON")
     return parser.parse_args()
 
 
@@ -274,12 +282,125 @@ def alignment_for(unit: TranslationUnitRow, page_rect: fitz.Rect) -> int:
     return fitz.TEXT_ALIGN_LEFT
 
 
+def evaluate_text_fit(
+    page_rect: fitz.Rect,
+    unit: TranslationUnitRow,
+    font_spec: FontSpec,
+) -> FitResult:
+    temp_doc = fitz.open()
+    try:
+        temp_page = temp_doc.new_page(width=page_rect.width, height=page_rect.height)
+        text_rect = build_text_rect(unit)
+        original_size = max(0.1, unit.font_size)
+        current_size = original_size
+        min_size = min_font_size_for(unit)
+        reduction_step = 0.25
+        align = alignment_for(unit, page_rect)
+        has_more_than_100 = len(unit.english_translation) > 100
+
+        while current_size >= min_size:
+            result = temp_page.insert_textbox(
+                text_rect,
+                unit.english_translation,
+                fontsize=current_size,
+                fontname=font_spec.fontname,
+                fontfile=font_spec.fontfile,
+                color=fitz.sRGB_to_pdf(unit.color),
+                align=align,
+            )
+            if result >= 0:
+                return FitResult(fits=True, proposed_size=round(current_size, 2))
+
+            if has_more_than_100 and current_size > original_size * 0.9:
+                current_size = max(original_size * 0.9, current_size - reduction_step)
+            else:
+                current_size -= reduction_step
+
+        return FitResult(fits=False, proposed_size=round(max(current_size, min_size), 2))
+    finally:
+        temp_doc.close()
+
+
+def preflight_report_path(project_root: Path, output_path: Path | None, source_pdf: Path) -> Path:
+    output_dir = project_root / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_path is None:
+        stem = f"{source_pdf.stem}_EN_TRANSLATION"
+    else:
+        resolved_output = output_path if output_path.is_absolute() else (project_root / output_path)
+        stem = resolved_output.stem
+    return (output_dir / f"{stem}_preflight_report.json").resolve()
+
+
+def run_preflight(
+    doc: fitz.Document,
+    rows: list[TranslationUnitRow],
+) -> dict[str, Any]:
+    arial_paths = {
+        "arial": Path(r"C:\Windows\Fonts\arial.ttf"),
+        "arialbd": Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        "arialbi": Path(r"C:\Windows\Fonts\arialbi.ttf"),
+        "ariali": Path(r"C:\Windows\Fonts\ariali.ttf"),
+    }
+
+    entries: list[dict[str, Any]] = []
+    failed_pages: set[int] = set()
+
+    for row in rows:
+        if row.action != "TRANSLATE":
+            continue
+
+        fits = False
+        proposed_size = round(max(0.1, row.font_size), 2)
+
+        if row.page < 1 or row.page > doc.page_count:
+            fits = False
+        elif row.english_translation.strip() == "":
+            fits = False
+        else:
+            page = doc.load_page(row.page - 1)
+            font_spec = choose_font_spec(row, arial_paths)
+            fit_result = evaluate_text_fit(page.rect, row, font_spec)
+            fits = fit_result.fits
+            proposed_size = fit_result.proposed_size
+
+        if not fits:
+            failed_pages.add(row.page)
+
+        entries.append(
+            {
+                "unit_id": row.unit_id,
+                "page": row.page,
+                "text": row.english_translation,
+                "proposed_size": proposed_size,
+                "fits": fits,
+            }
+        )
+
+    page_status: dict[str, str] = {}
+    for page_index in range(1, doc.page_count + 1):
+        page_status[str(page_index)] = "FAILED_PREFLIGHT" if page_index in failed_pages else "OK"
+
+    return {
+        "status": "FAILED_PREFLIGHT" if failed_pages else "OK",
+        "failed_pages": sorted(failed_pages),
+        "page_status": page_status,
+        "units": entries,
+    }
+
+
+def save_preflight_report(report_path: Path, report: dict[str, Any]) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with report_path.open("w", encoding="utf-8") as handle:
+        json.dump(report, handle, ensure_ascii=False, indent=2)
+
+
 def try_insert_translation(
     page: fitz.Page,
     unit: TranslationUnitRow,
     font_spec: FontSpec,
     summary: Summary,
-) -> None:
+) -> bool:
     text_rect = build_text_rect(unit)
     original_size = max(0.1, unit.font_size)
     current_size = original_size
@@ -303,7 +424,7 @@ def try_insert_translation(
         if result >= 0:
             if reduced:
                 summary.reduced_font_texts += 1
-            return
+            return True
 
         reduced = True
         if has_more_than_100 and current_size > original_size * 0.9:
@@ -318,6 +439,7 @@ def try_insert_translation(
         unit.page,
         unit.english_translation,
     )
+    return False
 
 
 def add_redaction(page: fitz.Page, unit: TranslationUnitRow) -> None:
@@ -458,16 +580,16 @@ def process_pdf(
         for row in translatable_rows:
             try:
                 font_spec = choose_font_spec(row, arial_paths)
-                try_insert_translation(page, row, font_spec, summary)
+                inserted = try_insert_translation(page, row, font_spec, summary)
+                if not inserted:
+                    raise RuntimeError(
+                        f"Unexpected insertion failure after redaction | unit_id={row.unit_id} | page={row.page}"
+                    )
             except Exception as exc:  # noqa: BLE001
                 summary.row_failures += 1
-                LOGGER.error(
-                    "Row insertion failed | unit_id=%s | page=%s | text=%s | error=%s",
-                    row.unit_id,
-                    row.page,
-                    row.original_text,
-                    exc,
-                )
+                raise RuntimeError(
+                    f"Row insertion failed | unit_id={row.unit_id} | page={row.page} | text={row.original_text} | error={exc}"
+                ) from exc
 
         add_translation_note(page)
 
@@ -512,13 +634,34 @@ def main() -> int:
         LOGGER.error("Excel not found: %s", excel_path)
         return 1
 
-    output_pdf, render_root = ensure_output_paths(project_root, args.output, pdf_path)
+    report_path = preflight_report_path(project_root, args.output, pdf_path)
 
     try:
         rows = read_translation_units(excel_path, args.sheet)
     except Exception as exc:  # noqa: BLE001
         LOGGER.error("Failed to read translation sheet: %s", exc)
         return 1
+
+    try:
+        with fitz.open(pdf_path) as preflight_doc:
+            report = run_preflight(preflight_doc, rows)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.error("Failed during preflight: %s", exc)
+        return 1
+
+    save_preflight_report(report_path, report)
+    if args.dry_run:
+        LOGGER.info("Dry-run completed. Preflight report: %s", report_path)
+        if report["status"] != "OK":
+            return 2
+        return 0
+
+    if report["status"] != "OK":
+        LOGGER.error("Preflight failed on pages: %s", report["failed_pages"])
+        LOGGER.error("PDF generation cancelled. Report: %s", report_path)
+        return 2
+
+    output_pdf, render_root = ensure_output_paths(project_root, args.output, pdf_path)
 
     try:
         with fitz.open(pdf_path) as doc:
