@@ -1,4 +1,4 @@
-profile_version: 3
+profile_version: 4
 
 internal_code_number_format: '"Internal Code: "00000000'
 right_footer: "Page &P of &N"
@@ -9,6 +9,10 @@ information_left_header: |-
   &"Arial,Normal"&11Calibration Laboratory
   Medellín Highway, km 8.5 - South Side
   Tenjo - Cundinamarca
+
+title_layout:
+  certificate_number_label: "Certificate Number:"
+  duplicate_certificate_number_format: ";;;"
 
 traceability_layout:
   equipment_font_size: 8.5
@@ -22,6 +26,7 @@ traceability_layout:
 pdf_validation:
   required_phrases:
     - "Internal Code"
+    - "Certificate Number"
     - "Calibration Laboratory"
     - "Medellín Highway, km 8.5 - South Side"
     - "Tenjo - Cundinamarca"
