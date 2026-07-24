@@ -8,7 +8,7 @@ from cal_translator.formats.t50_04002 import temperature_workbook_writer as lega
 from cal_translator.formats.t50_04002 import workbook_writer as common
 
 _ORIGINAL_BUILD_TEMPERATURE_WORKBOOK = legacy.build_temperature_workbook
-_ORIGINAL_INFO_PRINT_END = legacy._INFO_PRINT_END
+_ORIGINAL_VALIDATE_TEMPERATURE_WORKBOOK = legacy.validate_temperature_workbook
 
 _TRACE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("B", "equipment"),
@@ -33,6 +33,31 @@ def _clear_and_write_logical_cell(sheet: Any, address: str, value: Any) -> None:
     retry_com_call(area.ClearContents)
     top_left = retry_com_call(lambda: area.Cells(1, 1))
     set_com_property(top_left, "Value2", legacy._as_text(value))
+
+
+def _percent_fraction(value: Any) -> float | None:
+    """Normalize either an Excel fraction or percentage text to a numeric fraction."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", ".")
+    try:
+        if text.endswith("%"):
+            return float(text[:-1].strip()) / 100.0
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _percent_equivalent(expected: Any, actual: Any, tolerance: float = 1e-12) -> bool:
+    expected_fraction = _percent_fraction(expected)
+    actual_fraction = _percent_fraction(actual)
+    return (
+        expected_fraction is not None
+        and actual_fraction is not None
+        and abs(expected_fraction - actual_fraction) <= tolerance
+    )
 
 
 def _write_traceability(info_sheet: Any, entries: list[dict[str, Any]]) -> None:
@@ -82,6 +107,11 @@ def _write_results(result_sheet: Any, payload: dict[str, Any]) -> None:
     for address, value in labels.items():
         _clear_and_write_logical_cell(result_sheet, address, value)
 
+    accuracy_cell = retry_com_call(
+        lambda: result_sheet.Range(f"C{legacy._RESULT_ACCURACY_ROW}")
+    )
+    set_com_property(accuracy_cell, "NumberFormat", "0.###%")
+
     for address in (
         f"B{legacy._RESULT_ACCURACY_ROW}",
         f"B{legacy._RESULT_RANGE_ROW}",
@@ -118,6 +148,25 @@ def _write_results(result_sheet: Any, payload: dict[str, Any]) -> None:
     retry_com_call(result_sheet.ResetAllPageBreaks)
 
 
+def validate_temperature_workbook(output_path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Accept Excel's internal 0.01 representation as equivalent to source text 1%."""
+    report = _ORIGINAL_VALIDATE_TEMPERATURE_WORKBOOK(output_path, payload)
+    for check in report.get("checks") or []:
+        if (
+            check.get("code") == "temperature_metadata"
+            and check.get("target") == "Resultados!C12"
+            and _percent_equivalent(check.get("expected"), check.get("actual"))
+        ):
+            check["passed"] = True
+            check["comparison"] = "percentage_equivalent"
+
+    report["errors"] = [
+        check for check in report.get("checks") or [] if not check.get("passed")
+    ]
+    report["valid"] = not report["errors"]
+    return report
+
+
 def build_temperature_workbook(
     template_path: Path,
     data_path: Path,
@@ -129,9 +178,11 @@ def build_temperature_workbook(
     """Run the temperature writer with merge-safe writes and no row insertion."""
     original_traceability = legacy._write_traceability
     original_results = legacy._write_results
+    original_validate = legacy.validate_temperature_workbook
     original_info_end = legacy._INFO_PRINT_END
     legacy._write_traceability = _write_traceability
     legacy._write_results = _write_results
+    legacy.validate_temperature_workbook = validate_temperature_workbook
     legacy._INFO_PRINT_END = 77
     try:
         return _ORIGINAL_BUILD_TEMPERATURE_WORKBOOK(
@@ -144,6 +195,7 @@ def build_temperature_workbook(
     finally:
         legacy._write_traceability = original_traceability
         legacy._write_results = original_results
+        legacy.validate_temperature_workbook = original_validate
         legacy._INFO_PRINT_END = original_info_end
 
 
