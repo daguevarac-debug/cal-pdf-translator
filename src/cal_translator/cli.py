@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
-from cal_translator.formats.t50_04002.english_export import translate_and_export
+from cal_translator.formats.t50_04002.english_export_v2 import translate_and_export
 from cal_translator.formats.t50_04002.extractor import extract_certificate, write_extraction
 from cal_translator.formats.t50_04002.validate_template import (
     validate_template,
