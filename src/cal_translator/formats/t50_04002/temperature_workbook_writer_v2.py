@@ -7,6 +7,7 @@ from cal_translator.excel.com_backend import retry_com_call, set_com_property
 from cal_translator.formats.t50_04002 import temperature_workbook_writer as legacy
 from cal_translator.formats.t50_04002 import workbook_writer as common
 
+_ORIGINAL_BUILD_TEMPERATURE_WORKBOOK = legacy.build_temperature_workbook
 
 _TRACE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("B", "equipment"),
@@ -137,7 +138,7 @@ def build_temperature_workbook(
     legacy._write_traceability = _write_traceability
     legacy._write_results = _write_results
     try:
-        return legacy.build_temperature_workbook(
+        return _ORIGINAL_BUILD_TEMPERATURE_WORKBOOK(
             template_path,
             data_path,
             output_path,
