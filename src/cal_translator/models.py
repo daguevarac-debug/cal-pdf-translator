@@ -58,9 +58,11 @@ class ResultRow:
 @dataclass(slots=True)
 class CalibrationCertificate:
     format_id: str
-    schema_version: int = 1
+    schema_version: int = 2
     certificate_number: str | None = None
     internal_code: str | None = None
+    measurement_kind: str | None = None
+    result_metadata: dict[str, str] = field(default_factory=dict)
     equipment: EquipmentData = field(default_factory=EquipmentData)
     customer: CustomerData = field(default_factory=CustomerData)
     calibration_method: str | None = None
@@ -72,6 +74,7 @@ class CalibrationCertificate:
     results: list[ResultRow] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     source_pages: int = 0
+    source_issues: list[str] = field(default_factory=list)
     extraction_warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
