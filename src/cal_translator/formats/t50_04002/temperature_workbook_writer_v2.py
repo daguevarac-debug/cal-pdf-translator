@@ -8,6 +8,7 @@ from cal_translator.formats.t50_04002 import temperature_workbook_writer as lega
 from cal_translator.formats.t50_04002 import workbook_writer as common
 
 _ORIGINAL_BUILD_TEMPERATURE_WORKBOOK = legacy.build_temperature_workbook
+_ORIGINAL_INFO_PRINT_END = legacy._INFO_PRINT_END
 
 _TRACE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("B", "equipment"),
@@ -35,18 +36,7 @@ def _clear_and_write_logical_cell(sheet: Any, address: str, value: Any) -> None:
 
 
 def _write_traceability(info_sheet: Any, entries: list[dict[str, Any]]) -> None:
-    """Write three traceability rows without array writes into merged B:C cells."""
-    insert_row = retry_com_call(lambda: info_sheet.Rows("71:71"))
-    retry_com_call(insert_row.Insert)
-
-    new_equipment_area = retry_com_call(lambda: info_sheet.Range("B71:C71"))
-    if not bool(retry_com_call(lambda: new_equipment_area.MergeCells)):
-        retry_com_call(new_equipment_area.Merge)
-
-    source = retry_com_call(lambda: info_sheet.Range("B70:H70"))
-    destination = retry_com_call(lambda: info_sheet.Range("B71:H71"))
-    retry_com_call(lambda: source.Copy(Destination=destination))
-
+    """Use the three traceability rows already present in the controlled template."""
     for offset, entry in enumerate(entries):
         row = legacy._TRACE_START + offset
         equipment_area = retry_com_call(lambda row=row: info_sheet.Range(f"B{row}:C{row}"))
@@ -69,7 +59,7 @@ def _write_traceability(info_sheet: Any, entries: list[dict[str, Any]]) -> None:
         set_com_property(row_object, "RowHeight", 22)
 
     page_setup = retry_com_call(lambda: info_sheet.PageSetup)
-    set_com_property(page_setup, "PrintArea", f"$B$1:$H${legacy._INFO_PRINT_END}")
+    set_com_property(page_setup, "PrintArea", "$B$1:$H$77")
 
 
 def _write_results(result_sheet: Any, payload: dict[str, Any]) -> None:
@@ -136,11 +126,13 @@ def build_temperature_workbook(
     format_id: str = legacy.FORMAT_ID,
     overwrite: bool = False,
 ):
-    """Run the temperature writer with merge-safe traceability and note writes."""
+    """Run the temperature writer with merge-safe writes and no row insertion."""
     original_traceability = legacy._write_traceability
     original_results = legacy._write_results
+    original_info_end = legacy._INFO_PRINT_END
     legacy._write_traceability = _write_traceability
     legacy._write_results = _write_results
+    legacy._INFO_PRINT_END = 77
     try:
         return _ORIGINAL_BUILD_TEMPERATURE_WORKBOOK(
             template_path,
@@ -152,6 +144,7 @@ def build_temperature_workbook(
     finally:
         legacy._write_traceability = original_traceability
         legacy._write_results = original_results
+        legacy._INFO_PRINT_END = original_info_end
 
 
 def install_patch() -> None:
