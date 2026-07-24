@@ -1,6 +1,9 @@
 import pytest
 
-from cal_translator.formats.t50_04002.english_export_v3 import laboratory_cell_specs
+from cal_translator.formats.t50_04002.english_export_v3 import (
+    certificate_sheet_names,
+    laboratory_cell_specs,
+)
 
 
 def test_laboratory_identity_uses_two_real_cell_blocks() -> None:
@@ -38,3 +41,7 @@ def test_laboratory_identity_uses_two_real_cell_blocks() -> None:
 def test_laboratory_identity_rejects_floating_box_configuration() -> None:
     with pytest.raises(RuntimeError, match="exactly two cell blocks"):
         laboratory_cell_specs({"information_cells": []})
+
+
+def test_page_setup_is_limited_to_published_certificate_sheets() -> None:
+    assert certificate_sheet_names() == ("Información", "Resultados")
