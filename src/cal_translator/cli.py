@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
+from cal_translator.formats.t50_04002.extractor import extract_certificate, write_extraction
 from cal_translator.formats.t50_04002.validate_template import (
     validate_template,
     write_validation_report,
@@ -45,6 +46,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_template_arguments(validate_parser)
 
+    extract_parser = subparsers.add_parser(
+        "extract-certificate",
+        help="Extract a digital calibration certificate PDF into a structured JSON document.",
+    )
+    extract_parser.add_argument("--pdf", type=Path, required=True, help="Path to the source certificate PDF")
+    extract_parser.add_argument(
+        "--format",
+        dest="format_id",
+        required=True,
+        help="Controlled document format, currently T50-04002",
+    )
+    extract_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Directory for the structured extraction JSON",
+    )
+
     return parser
 
 
@@ -79,6 +98,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- Warnings: {len(report['warnings'])}")
             print(f"- Checks: {len(report['checks'])}")
             return 0 if report["valid"] else 1
+
+        if args.command == "extract-certificate":
+            if args.format_id != "T50-04002":
+                raise RuntimeError(
+                    f"Unsupported extraction format: {args.format_id}. Expected T50-04002."
+                )
+            certificate = extract_certificate(args.pdf)
+            json_path = write_extraction(certificate, args.output)
+            channel_counts = {
+                channel: sum(row.channel == channel for row in certificate.results)
+                for channel in ("A", "B", "C")
+            }
+            print("Certificate extraction completed")
+            print(f"- JSON: {json_path.resolve()}")
+            print(f"- Certificate: {certificate.certificate_number or 'not detected'}")
+            print(f"- Pages: {certificate.source_pages}")
+            print(f"- Traceability entries: {len(certificate.traceability)}")
+            print(f"- Result rows: {len(certificate.results)}")
+            print(
+                "- Channels: "
+                + ", ".join(f"{channel}={count}" for channel, count in channel_counts.items())
+            )
+            print(f"- Warnings: {len(certificate.extraction_warnings)}")
+            for warning in certificate.extraction_warnings:
+                print(f"  - {warning}")
+            return 0 if not certificate.extraction_warnings else 1
     except (FileNotFoundError, RuntimeError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
 
