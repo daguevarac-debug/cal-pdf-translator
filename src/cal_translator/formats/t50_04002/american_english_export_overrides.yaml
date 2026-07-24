@@ -1,17 +1,22 @@
-profile_version: 5
+profile_version: 6
 
 internal_code_number_format: '"Internal Code: "00000000'
-right_footer: "Page &P of &N"
+right_footer: "Page &[Page] of &[Pages]"
 
 information_text_box:
   name: "CAL_English_Laboratory_Block"
   anchor: "B1"
-  width: 290
-  height: 50
+  width: 360
+  height: 58
+  left_offset: -50
+  top_offset: 8
   font_name: "Arial"
   font_size: 7.5
-  bold_line: "Calibration Laboratory"
-  bold_font_size: 10.5
+  text_margin_left: 50
+  text_margin_right: 0
+  text_margin_top: 2
+  text_margin_bottom: 0
+  white_fill: true
   text: |-
     Siemens Energy is a trademark licensed by Siemens AG.
     Calibration Laboratory
