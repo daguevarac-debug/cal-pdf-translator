@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
+from cal_translator.formats.t50_04002.batch_processor import process_certificate_range
 from cal_translator.formats.t50_04002.english_export_v3 import translate_and_export
 from cal_translator.formats.t50_04002.extractor import extract_certificate, write_extraction
 from cal_translator.formats.t50_04002.validate_template import (
@@ -136,6 +137,50 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Replace existing English workbook and PDF outputs",
     )
 
+    range_parser = subparsers.add_parser(
+        "process-range",
+        help=(
+            "Process an inclusive range of same-format CAL PDFs through extraction, "
+            "Excel generation, English translation and PDF export."
+        ),
+    )
+    range_parser.add_argument(
+        "--input-dir",
+        type=Path,
+        required=True,
+        help="Directory containing files named CAL-<number>.pdf",
+    )
+    range_parser.add_argument(
+        "--template",
+        type=Path,
+        required=True,
+        help="Path to the validated T50-04002 Excel template",
+    )
+    range_parser.add_argument(
+        "--format",
+        dest="format_id",
+        required=True,
+        help="Controlled document format, currently T50-04002",
+    )
+    range_parser.add_argument("--start", type=int, required=True, help="First CAL number, inclusive")
+    range_parser.add_argument("--end", type=int, required=True, help="Last CAL number, inclusive")
+    range_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Root directory for one output folder per certificate",
+    )
+    range_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing generated files",
+    )
+    range_parser.add_argument(
+        "--stop-on-error",
+        action="store_true",
+        help="Stop after the first missing or failed certificate instead of continuing",
+    )
+
     return parser
 
 
@@ -235,6 +280,29 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- PDF pages: {pdf_validation['page_count']}")
             print(f"- Workbook valid: {str(report['workbook_validation']['valid']).lower()}")
             print(f"- PDF valid: {str(pdf_validation['valid']).lower()}")
+            return 0 if report["valid"] else 1
+
+        if args.command == "process-range":
+            report, report_path = process_certificate_range(
+                args.input_dir,
+                args.template,
+                args.output,
+                start=args.start,
+                end=args.end,
+                format_id=args.format_id,
+                overwrite=args.overwrite,
+                stop_on_error=args.stop_on_error,
+            )
+            counts = report["status_counts"]
+            print("Certificate range processing completed")
+            print(f"- Report: {report_path.resolve()}")
+            print(f"- Range: {report['start_certificate']} to {report['end_certificate']}")
+            print(f"- Completed: {counts['completed']}")
+            print(f"- Failed: {counts['failed']}")
+            print(f"- Missing: {counts['missing']}")
+            for item in report["certificates"]:
+                detail = item.get("error") or item.get("english_pdf") or ""
+                print(f"  - {item['certificate']}: {item['status']} {detail}")
             return 0 if report["valid"] else 1
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
