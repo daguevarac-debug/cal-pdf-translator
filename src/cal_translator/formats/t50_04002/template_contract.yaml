@@ -1,0 +1,43 @@
+format_id: T50-04002
+contract_version: 1
+
+worksheets:
+  - Información
+  - Resultados
+  - Administración
+  - Control de cambios
+
+print_areas:
+  Información: B1:H77
+  Resultados: B1:L43
+  Administración: A1:I51
+  Control de cambios: A1:G7
+
+required_formulas:
+  Información!B6: "=B5"
+  Información!H37: "=I19"
+  Información!D43: "=L40+L42"
+  Información!D44: "=L41+L43"
+  Información!H43: "=L44+L46"
+  Información!H44: "=L45+L47"
+
+required_values:
+  Información!B3: "Certificado de Calibración"
+  Información!B4: "Calibration certificate"
+  Información!B52: "Incertidumbre de Medición"
+  Información!B62: "Trazabilidad"
+  Información!B72: "Resultados de calibración"
+  Resultados!B7: "Rango"
+  Resultados!C7: "Valor especificado"
+  Resultados!D7: "Valor Promedio Medido"
+  Resultados!G7: "Incertidumbre expandida"
+  Resultados!H7: "Factor de cobertura k"
+
+revision_compatibility:
+  policy: exact_controlled_anchors
+  incompatible_when:
+    - required worksheet is missing
+    - print area differs
+    - required formula differs
+    - required anchor text differs
+    - mapped cell or range cannot be resolved

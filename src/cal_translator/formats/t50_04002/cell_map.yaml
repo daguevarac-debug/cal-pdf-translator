@@ -1,0 +1,194 @@
+format_id: T50-04002
+
+certificate:
+  number_input:
+    sheet: Información
+    cell: B5
+    writable: true
+  number_display:
+    sheet: Información
+    cell: B6
+    writable: false
+    formula: "=B5"
+
+internal_code:
+  sheet: Información
+  cell: B7
+  writable: true
+
+equipment:
+  description:
+    sheet: Información
+    cell: C11
+    writable: true
+  manufacturer:
+    sheet: Información
+    cell: C13
+    writable: true
+  serial_number:
+    sheet: Información
+    cell: G13
+    writable: true
+  model:
+    sheet: Información
+    cell: C15
+    writable: true
+  customer_identification:
+    sheet: Información
+    cell: G15
+    writable: true
+
+customer:
+  name:
+    sheet: Información
+    cell: D18
+    writable: true
+  address:
+    sheet: Información
+    cell: D20
+    writable: true
+  city:
+    sheet: Información
+    cell: D21
+    writable: true
+  order_number:
+    sheet: Información
+    cell: D22
+    writable: true
+
+dates:
+  received:
+    sheet: Información
+    cell: D46
+    writable: true
+  calibration:
+    sheet: Información
+    cell: H46
+    writable: true
+  issue:
+    sheet: Información
+    cell: D48
+    writable: true
+
+environment:
+  maximum_temperature:
+    measured:
+      sheet: Información
+      cell: L40
+      writable: true
+    correction:
+      sheet: Información
+      cell: L42
+      writable: true
+    display:
+      sheet: Información
+      cell: D43
+      writable: false
+      formula: "=L40+L42"
+  minimum_temperature:
+    measured:
+      sheet: Información
+      cell: L41
+      writable: true
+    correction:
+      sheet: Información
+      cell: L43
+      writable: true
+    display:
+      sheet: Información
+      cell: D44
+      writable: false
+      formula: "=L41+L43"
+  maximum_humidity:
+    measured:
+      sheet: Información
+      cell: L44
+      writable: true
+    correction:
+      sheet: Información
+      cell: L46
+      writable: true
+    display:
+      sheet: Información
+      cell: H43
+      writable: false
+      formula: "=L44+L46"
+  minimum_humidity:
+    measured:
+      sheet: Información
+      cell: L45
+      writable: true
+    correction:
+      sheet: Información
+      cell: L47
+      writable: true
+    display:
+      sheet: Información
+      cell: H44
+      writable: false
+      formula: "=L45+L47"
+
+formula_cells:
+  environmental_reference:
+    sheet: Información
+    cell: H37
+    writable: false
+    formula: "=I19"
+
+permanent_text:
+  certificate_title_es:
+    sheet: Información
+    cell: B3
+    writable: false
+  certificate_title_en:
+    sheet: Información
+    cell: B4
+    writable: false
+  measurement_uncertainty_heading:
+    sheet: Información
+    cell: B52
+    writable: false
+  traceability_heading:
+    sheet: Información
+    cell: B62
+    writable: false
+  calibration_results_heading:
+    sheet: Información
+    cell: B72
+    writable: false
+
+traceability:
+  sheet: Información
+  header_range: B68:H68
+  initial_rows:
+    start: 69
+    end: 70
+  writable: true
+  repeatable: true
+  expansion:
+    strategy: pending_validation
+
+results:
+  sheet: Resultados
+  header_row: 7
+  initial_data_rows:
+    start: 8
+    end: 24
+  columns:
+    range: B
+    specified_value: C
+    average_measured_value: D
+    bias: E
+    maximum_permissible_error: F
+    expanded_uncertainty: G
+    coverage_factor: H
+    cmc: I
+    pass_fail: J
+    tur: K
+    tar: L
+  writable: true
+  repeatable: true
+  dynamic_range: B8:L24
+  expansion:
+    required_for_cal_13078: true
+    strategy: pending_validation
