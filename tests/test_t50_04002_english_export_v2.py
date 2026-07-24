@@ -1,5 +1,5 @@
 from cal_translator.formats.t50_04002.english_export_v2 import (
-    information_left_header_text,
+    laboratory_text_box_spec,
     merge_controlled_profile,
     optional_result_columns_are_empty,
     select_results_print_layout,
@@ -41,7 +41,7 @@ def test_controlled_profile_adds_residual_spanish_validation() -> None:
         },
     }
     overrides = {
-        "profile_version": 4,
+        "profile_version": 5,
         "pdf_validation": {
             "required_phrases": [
                 "Internal Code",
@@ -54,7 +54,7 @@ def test_controlled_profile_adds_residual_spanish_validation() -> None:
 
     merged = merge_controlled_profile(original, overrides)
 
-    assert merged["profile_version"] == 4
+    assert merged["profile_version"] == 5
     assert merged["pdf_validation"]["required_phrases"] == [
         "Calibration Certificate",
         "Internal Code",
@@ -69,23 +69,36 @@ def test_controlled_profile_adds_residual_spanish_validation() -> None:
     assert original["profile_version"] == 1
 
 
-def test_information_header_preserves_logo_and_laboratory_identity() -> None:
+def test_information_text_box_preserves_logo_and_adds_laboratory_identity() -> None:
     overrides = {
-        "information_left_header": (
-            "&G\n"
-            '&"Arial,Normal"&7Siemens Energy is a trademark licensed by Siemens AG.\n'
-            '&"Arial,Normal"&11Calibration Laboratory\n'
-            "Medellín Highway, km 8.5 - South Side\n"
-            "Tenjo - Cundinamarca"
-        )
+        "information_text_box": {
+            "name": "CAL_English_Laboratory_Block",
+            "anchor": "B1",
+            "width": 290,
+            "height": 50,
+            "font_name": "Arial",
+            "font_size": 7.5,
+            "text": (
+                "Siemens Energy is a trademark licensed by Siemens AG.\n"
+                "Calibration Laboratory\n"
+                "Medellín Highway, km 8.5 - South Side\n"
+                "Tenjo - Cundinamarca"
+            ),
+            "row_heights": {1: 24, 2: 28},
+        }
     }
 
-    header = information_left_header_text(overrides)
+    spec = laboratory_text_box_spec(overrides)
 
-    assert header.startswith("&G\n")
-    assert "Calibration Laboratory" in header
-    assert "Medellín Highway, km 8.5 - South Side" in header
-    assert header.endswith("Tenjo - Cundinamarca")
+    assert spec["name"] == "CAL_English_Laboratory_Block"
+    assert spec["anchor"] == "B1"
+    assert spec["width"] == 290.0
+    assert spec["height"] == 50.0
+    assert spec["font_name"] == "Arial"
+    assert spec["font_size"] == 7.5
+    assert "Calibration Laboratory" in spec["text"]
+    assert "Medellín Highway, km 8.5 - South Side" in spec["text"]
+    assert spec["row_heights"] == {1: 24.0, 2: 28.0}
 
 
 def test_title_layout_labels_one_visible_certificate_number() -> None:
