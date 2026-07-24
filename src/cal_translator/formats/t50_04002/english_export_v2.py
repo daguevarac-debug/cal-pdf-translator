@@ -12,6 +12,7 @@ from cal_translator.formats.t50_04002 import english_export as legacy
 _RESULTS_PRINT_END_ROW = 102
 _OPTIONAL_RESULT_RANGE = "I10:L83"
 _XL_FALSE = False
+_XL_CENTER = -4108
 
 
 def _matrix(value: Any) -> tuple[tuple[Any, ...], ...]:
@@ -114,6 +115,59 @@ def configure_pdf_print_layout(workbook: Any) -> dict[str, Any]:
     return layout
 
 
+def information_left_header_text(overrides: dict[str, Any]) -> str:
+    header = overrides.get("information_left_header")
+    if not isinstance(header, str) or "&G" not in header:
+        raise RuntimeError(
+            "The controlled information-page header must be a string containing the &G logo token."
+        )
+    return header.rstrip()
+
+
+def traceability_presentation(overrides: dict[str, Any]) -> dict[str, Any]:
+    layout = overrides.get("traceability_layout") or {}
+    heights = layout.get("row_heights") or {}
+    normalized_heights = {int(row): float(height) for row, height in heights.items()}
+    expected_rows = set(range(69, 74))
+    if set(normalized_heights) != expected_rows:
+        raise RuntimeError(
+            "Controlled traceability layout must define row heights for rows 69 through 73."
+        )
+    return {
+        "equipment_font_size": float(layout.get("equipment_font_size", 8.5)),
+        "row_heights": normalized_heights,
+    }
+
+
+def configure_information_presentation(
+    workbook: Any, overrides: dict[str, Any]
+) -> dict[str, Any]:
+    """Restore the first-page laboratory header and make traceability rows legible."""
+    information = legacy._get_sheet(workbook, "Información")
+    page_setup = retry_com_call(lambda: information.PageSetup)
+    left_header = information_left_header_text(overrides)
+    set_com_property(page_setup, "LeftHeader", left_header)
+
+    layout = traceability_presentation(overrides)
+    traceability_range = retry_com_call(lambda: information.Range("B69:H73"))
+    set_com_property(traceability_range, "WrapText", True)
+    set_com_property(traceability_range, "VerticalAlignment", _XL_CENTER)
+
+    equipment_range = retry_com_call(lambda: information.Range("B69:C73"))
+    equipment_font = retry_com_call(lambda: equipment_range.Font)
+    set_com_property(equipment_font, "Size", layout["equipment_font_size"])
+
+    for row, height in layout["row_heights"].items():
+        row_object = retry_com_call(lambda row=row: information.Rows(row))
+        set_com_property(row_object, "RowHeight", height)
+
+    return {
+        "left_header": left_header,
+        "equipment_font_size": layout["equipment_font_size"],
+        "row_heights": layout["row_heights"],
+    }
+
+
 def configure_controlled_metadata(
     workbook: Any, overrides: dict[str, Any]
 ) -> dict[str, Any]:
@@ -147,9 +201,10 @@ def translate_and_export(
     format_id: str = legacy.FORMAT_ID,
     overwrite: bool = False,
 ) -> tuple[dict[str, Any], Path]:
-    """Run the controlled English export with corrected pagination and metadata."""
+    """Run the controlled English export with corrected pagination and presentation."""
     export_layout: dict[str, Any] = {}
     metadata_changes: dict[str, Any] = {}
+    information_presentation: dict[str, Any] = {}
     overrides = _load_overrides()
 
     original_export = legacy._export_certificate_pdf
@@ -160,6 +215,9 @@ def translate_and_export(
 
     def export_with_controlled_layout(workbook: Any, pdf_path: Path) -> None:
         metadata_changes.update(configure_controlled_metadata(workbook, overrides))
+        information_presentation.update(
+            configure_information_presentation(workbook, overrides)
+        )
         export_layout.update(configure_pdf_print_layout(workbook))
         retry_com_call(workbook.Save, attempts=20, initial_delay=0.25)
         original_export(workbook, pdf_path)
@@ -181,6 +239,7 @@ def translate_and_export(
 
     report["pdf_layout"] = export_layout
     report["controlled_metadata"] = metadata_changes
+    report["information_presentation"] = information_presentation
     report_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
