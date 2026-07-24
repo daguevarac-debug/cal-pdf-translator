@@ -39,6 +39,10 @@ def _write_traceability(info_sheet: Any, entries: list[dict[str, Any]]) -> None:
     insert_row = retry_com_call(lambda: info_sheet.Rows("71:71"))
     retry_com_call(insert_row.Insert)
 
+    new_equipment_area = retry_com_call(lambda: info_sheet.Range("B71:C71"))
+    if not bool(retry_com_call(lambda: new_equipment_area.MergeCells)):
+        retry_com_call(new_equipment_area.Merge)
+
     source = retry_com_call(lambda: info_sheet.Range("B70:H70"))
     destination = retry_com_call(lambda: info_sheet.Range("B71:H71"))
     retry_com_call(lambda: source.Copy(Destination=destination))
