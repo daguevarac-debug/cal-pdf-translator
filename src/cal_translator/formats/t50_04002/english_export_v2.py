@@ -13,6 +13,9 @@ _RESULTS_PRINT_END_ROW = 102
 _OPTIONAL_RESULT_RANGE = "I10:L83"
 _XL_FALSE = False
 _XL_CENTER = -4108
+_XL_MOVE_AND_SIZE = 1
+_MSO_TEXT_ORIENTATION_HORIZONTAL = 1
+_MSO_FALSE = 0
 
 
 def _matrix(value: Any) -> tuple[tuple[Any, ...], ...]:
@@ -115,13 +118,33 @@ def configure_pdf_print_layout(workbook: Any) -> dict[str, Any]:
     return layout
 
 
-def information_left_header_text(overrides: dict[str, Any]) -> str:
-    header = overrides.get("information_left_header")
-    if not isinstance(header, str) or "&G" not in header:
+def laboratory_text_box_spec(overrides: dict[str, Any]) -> dict[str, Any]:
+    block = overrides.get("information_text_box") or {}
+    required_text = str(block.get("text") or "").strip()
+    name = str(block.get("name") or "").strip()
+    anchor = str(block.get("anchor") or "").strip()
+    row_heights = {
+        int(row): float(height)
+        for row, height in (block.get("row_heights") or {}).items()
+    }
+    if not required_text or not name or not anchor:
         raise RuntimeError(
-            "The controlled information-page header must be a string containing the &G logo token."
+            "Controlled information text box must define name, anchor and text."
         )
-    return header.rstrip()
+    if set(row_heights) != {1, 2}:
+        raise RuntimeError(
+            "Controlled information text box must define row heights for rows 1 and 2."
+        )
+    return {
+        "name": name,
+        "anchor": anchor,
+        "text": required_text,
+        "width": float(block.get("width", 290)),
+        "height": float(block.get("height", 50)),
+        "font_name": str(block.get("font_name") or "Arial"),
+        "font_size": float(block.get("font_size", 7.5)),
+        "row_heights": row_heights,
+    }
 
 
 def traceability_presentation(overrides: dict[str, Any]) -> dict[str, Any]:
@@ -153,14 +176,80 @@ def title_presentation(overrides: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _delete_named_shape(sheet: Any, name: str) -> bool:
+    shapes = retry_com_call(lambda: sheet.Shapes)
+    try:
+        shape = retry_com_call(lambda: shapes.Item(name))
+    except Exception:  # noqa: BLE001 - missing named shape is expected on first export
+        return False
+    retry_com_call(shape.Delete)
+    return True
+
+
+def _create_laboratory_text_box(sheet: Any, spec: dict[str, Any]) -> dict[str, Any]:
+    for row, height in spec["row_heights"].items():
+        row_object = retry_com_call(lambda row=row: sheet.Rows(row))
+        set_com_property(row_object, "RowHeight", height)
+
+    anchor = retry_com_call(lambda: sheet.Range(spec["anchor"]))
+    left = float(retry_com_call(lambda: anchor.Left))
+    top = float(retry_com_call(lambda: anchor.Top))
+    removed_existing = _delete_named_shape(sheet, spec["name"])
+
+    shapes = retry_com_call(lambda: sheet.Shapes)
+    shape = retry_com_call(
+        lambda: shapes.AddTextbox(
+            _MSO_TEXT_ORIENTATION_HORIZONTAL,
+            left,
+            top,
+            spec["width"],
+            spec["height"],
+        )
+    )
+    set_com_property(shape, "Name", spec["name"])
+    set_com_property(shape, "Placement", _XL_MOVE_AND_SIZE)
+    set_com_property(shape, "PrintObject", True)
+
+    fill = retry_com_call(lambda: shape.Fill)
+    line = retry_com_call(lambda: shape.Line)
+    set_com_property(fill, "Visible", _MSO_FALSE)
+    set_com_property(line, "Visible", _MSO_FALSE)
+
+    text_frame = retry_com_call(lambda: shape.TextFrame2)
+    set_com_property(text_frame, "MarginLeft", 0)
+    set_com_property(text_frame, "MarginRight", 0)
+    set_com_property(text_frame, "MarginTop", 0)
+    set_com_property(text_frame, "MarginBottom", 0)
+    set_com_property(text_frame, "WordWrap", True)
+
+    text_range = retry_com_call(lambda: text_frame.TextRange)
+    set_com_property(text_range, "Text", spec["text"])
+    font = retry_com_call(lambda: text_range.Font)
+    set_com_property(font, "Name", spec["font_name"])
+    set_com_property(font, "Size", spec["font_size"])
+
+    return {
+        "shape_name": spec["name"],
+        "anchor": spec["anchor"],
+        "text": spec["text"],
+        "width": spec["width"],
+        "height": spec["height"],
+        "font_name": spec["font_name"],
+        "font_size": spec["font_size"],
+        "row_heights": spec["row_heights"],
+        "removed_existing_shape": removed_existing,
+    }
+
+
 def configure_information_presentation(
     workbook: Any, overrides: dict[str, Any]
 ) -> dict[str, Any]:
-    """Restore the laboratory header and make first-page tables and title legible."""
+    """Restore first-page identity and make title and traceability rows legible."""
     information = legacy._get_sheet(workbook, "Información")
-    page_setup = retry_com_call(lambda: information.PageSetup)
-    left_header = information_left_header_text(overrides)
-    set_com_property(page_setup, "LeftHeader", left_header)
+    text_box = _create_laboratory_text_box(
+        information,
+        laboratory_text_box_spec(overrides),
+    )
 
     title_layout = title_presentation(overrides)
     certificate_label = retry_com_call(lambda: information.Range("B4"))
@@ -190,7 +279,7 @@ def configure_information_presentation(
         set_com_property(row_object, "RowHeight", height)
 
     return {
-        "left_header": left_header,
+        "laboratory_text_box": text_box,
         "certificate_number_label": title_layout["certificate_number_label"],
         "duplicate_certificate_number_format": title_layout[
             "duplicate_certificate_number_format"
