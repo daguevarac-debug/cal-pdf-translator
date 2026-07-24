@@ -10,6 +10,7 @@ from cal_translator.formats.t50_04002.validate_template import (
     validate_template,
     write_validation_report,
 )
+from cal_translator.formats.t50_04002.workbook_writer import build_workbook_prototype
 
 
 def _add_template_arguments(parser: argparse.ArgumentParser) -> None:
@@ -62,6 +63,33 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         required=True,
         help="Directory for the structured extraction JSON",
+    )
+
+    build_parser = subparsers.add_parser(
+        "build-workbook-prototype",
+        help=(
+            "Copy a validated Excel template and write scalar certificate fields. "
+            "Repeatable traceability and result tables remain intentionally skipped."
+        ),
+    )
+    build_parser.add_argument("--template", type=Path, required=True, help="Path to the source Excel template")
+    build_parser.add_argument("--data", type=Path, required=True, help="Path to the extracted certificate JSON")
+    build_parser.add_argument(
+        "--format",
+        dest="format_id",
+        required=True,
+        help="Controlled document format, currently T50-04002",
+    )
+    build_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output .xlsx path for the working prototype",
+    )
+    build_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace an existing output workbook",
     )
 
     return parser
@@ -124,7 +152,25 @@ def main(argv: list[str] | None = None) -> int:
             for warning in certificate.extraction_warnings:
                 print(f"  - {warning}")
             return 0 if not certificate.extraction_warnings else 1
-    except (FileNotFoundError, RuntimeError) as exc:
+
+        if args.command == "build-workbook-prototype":
+            report, report_path = build_workbook_prototype(
+                args.template,
+                args.data,
+                args.output,
+                format_id=args.format_id,
+                overwrite=args.overwrite,
+            )
+            skipped = report["skipped_sections"]
+            print("Workbook prototype completed")
+            print(f"- Workbook: {Path(report['output_workbook']).resolve()}")
+            print(f"- Report: {report_path.resolve()}")
+            print(f"- Scalar fields written: {report['fields_written']}")
+            print(f"- Traceability rows skipped: {skipped['traceability']['rows']}")
+            print(f"- Result rows skipped: {skipped['results']['rows']}")
+            print(f"- Postflight valid: {str(report['postflight_valid']).lower()}")
+            return 0 if report["postflight_valid"] else 1
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
 
     parser.error(f"Unsupported command: {args.command}")
