@@ -1,9 +1,35 @@
 from datetime import datetime
 
-from cal_translator.formats.t50_04002.workbook_writer import build_scalar_write_plan
+import pytest
+
+from cal_translator.formats.t50_04002.workbook_writer import (
+    _require_complete_payload,
+    build_scalar_write_plan,
+    result_display_rows,
+)
 
 
 def _payload() -> dict:
+    results = []
+    for channel in "ABC":
+        for index in range(24):
+            results.append(
+                {
+                    "channel": channel,
+                    "range": "1,0 Ω / 45 A" if index < 2 else "10,0 Ω / 25 A",
+                    "specified_value": f"{index},000 mΩ",
+                    "average_measured_value": f"{index},001 mΩ",
+                    "bias": "0,001 mΩ",
+                    "maximum_permissible_error": None,
+                    "expanded_uncertainty": "0,0058 mΩ",
+                    "coverage_factor": "2,0",
+                    "cmc": None,
+                    "pass_fail": None,
+                    "tur": None,
+                    "tar": None,
+                }
+            )
+
     return {
         "format_id": "T50-04002",
         "certificate_number": "CAL-13078",
@@ -21,6 +47,7 @@ def _payload() -> dict:
             "city": "Tenjo",
             "order_number": "No",
         },
+        "calibration_method": "Controlled calibration method.",
         "reception_date": "2026-01-30",
         "calibration_date": "2026-02-02",
         "issue_date": "2026-02-02",
@@ -30,6 +57,20 @@ def _payload() -> dict:
             "maximum_relative_humidity": "37 %",
             "minimum_relative_humidity": "37 %",
         },
+        "traceability": [
+            {
+                "equipment": f"Reference {index}",
+                "type": "AEG",
+                "internal_number": str(40000 + index),
+                "calibrated_by": "SET-GAT",
+                "certificate_number": f"NU{index:02d}-25",
+                "calibration_date": "2025-08-14",
+            }
+            for index in range(5)
+        ],
+        "results": results,
+        "notes": [f"{index}. Note {index}" for index in range(1, 8)],
+        "extraction_warnings": [],
     }
 
 
@@ -59,3 +100,27 @@ def test_scalar_plan_converts_dates_and_environmental_values() -> None:
     assert values["environment.minimum_temperature.measured"] == 22.2
     assert values["environment.maximum_humidity.measured"] == 37.0
     assert values["environment.minimum_humidity.correction"] == 0.0
+
+
+def test_result_layout_uses_three_controlled_24_row_blocks() -> None:
+    positioned = result_display_rows(_payload())
+
+    assert len(positioned) == 72
+    assert [row for row, _ in positioned[:24]] == list(range(10, 34))
+    assert [row for row, _ in positioned[24:48]] == list(range(35, 59))
+    assert [row for row, _ in positioned[48:]] == list(range(60, 84))
+
+    # The range label is printed only on the first row of each repeated range.
+    assert positioned[0][1]["range"] == "1,0 Ω / 45 A"
+    assert positioned[1][1]["range"] == ""
+    assert positioned[2][1]["range"] == "10,0 Ω / 25 A"
+    assert positioned[24][1]["range"] == "1,0 Ω / 45 A"
+
+
+def test_complete_payload_requires_exact_controlled_counts() -> None:
+    payload = _payload()
+    _require_complete_payload(payload)
+
+    payload["results"] = payload["results"][:-1]
+    with pytest.raises(RuntimeError, match="72 result rows"):
+        _require_complete_payload(payload)
