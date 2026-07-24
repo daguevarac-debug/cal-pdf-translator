@@ -8,6 +8,8 @@ from cal_translator.models import CalibrationCertificate, EnvironmentalCondition
 from cal_translator.pdf.text_extractor import PdfPageText
 
 _ENVIRONMENT_WARNING = "Expected two environmental condition rows on page 1."
+_ORIGINAL_EXTRACT_PAGE_ONE = legacy._extract_page_one
+_ORIGINAL_EXTRACT_CERTIFICATE = legacy.extract_temperature_certificate
 
 
 def extract_labeled_environmental_conditions(text: str) -> EnvironmentalConditions | None:
@@ -29,7 +31,7 @@ def extract_labeled_environmental_conditions(text: str) -> EnvironmentalConditio
 
 
 def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) -> None:
-    legacy._extract_page_one(page, certificate)
+    _ORIGINAL_EXTRACT_PAGE_ONE(page, certificate)
     environmental = extract_labeled_environmental_conditions(page.text)
     if environmental is None:
         return
@@ -43,12 +45,17 @@ def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) ->
 
 def extract_temperature_certificate(pdf_path: Path) -> CalibrationCertificate:
     """Run the temperature extractor with split-row environmental parsing enabled."""
-    original = legacy._extract_page_one
+    original_page_one = legacy._extract_page_one
     legacy._extract_page_one = _extract_page_one
     try:
-        return legacy.extract_temperature_certificate(pdf_path)
+        return _ORIGINAL_EXTRACT_CERTIFICATE(pdf_path)
     finally:
-        legacy._extract_page_one = original
+        legacy._extract_page_one = original_page_one
+
+
+def install_patch() -> None:
+    """Expose the corrected extractor through the legacy module used by the batch CLI."""
+    legacy.extract_temperature_certificate = extract_temperature_certificate
 
 
 is_temperature_certificate = legacy.is_temperature_certificate
