@@ -68,8 +68,8 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser = subparsers.add_parser(
         "build-workbook-prototype",
         help=(
-            "Copy a validated Excel template and write scalar certificate fields. "
-            "Repeatable traceability and result tables remain intentionally skipped."
+            "Copy a validated Excel template, write the extracted certificate data and expand "
+            "the controlled traceability and result sections. Translation remains a separate stage."
         ),
     )
     build_parser.add_argument("--template", type=Path, required=True, help="Path to the source Excel template")
@@ -84,7 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         required=True,
-        help="Output .xlsx path for the working prototype",
+        help="Output .xlsx path for the expanded working workbook",
     )
     build_parser.add_argument(
         "--overwrite",
@@ -161,13 +161,14 @@ def main(argv: list[str] | None = None) -> int:
                 format_id=args.format_id,
                 overwrite=args.overwrite,
             )
-            skipped = report["skipped_sections"]
-            print("Workbook prototype completed")
+            print("Workbook expansion completed")
             print(f"- Workbook: {Path(report['output_workbook']).resolve()}")
             print(f"- Report: {report_path.resolve()}")
-            print(f"- Scalar fields written: {report['fields_written']}")
-            print(f"- Traceability rows skipped: {skipped['traceability']['rows']}")
-            print(f"- Result rows skipped: {skipped['results']['rows']}")
+            print(f"- Scalar fields written: {report['scalar_fields_written']}")
+            print(f"- Calibration method written: {str(report['method_written']).lower()}")
+            print(f"- Traceability rows written: {report['traceability_rows_written']}")
+            print(f"- Result rows written: {report['result_rows_written']}")
+            print(f"- Notes written: {report['notes_written']}")
             print(f"- Postflight valid: {str(report['postflight_valid']).lower()}")
             return 0 if report["postflight_valid"] else 1
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
