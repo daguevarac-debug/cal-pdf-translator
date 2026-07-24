@@ -4,7 +4,6 @@ import json
 import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Iterable
 
 from cal_translator.models import (
     CalibrationCertificate,
@@ -14,25 +13,77 @@ from cal_translator.models import (
     ResultRow,
     TraceabilityEntry,
 )
-from cal_translator.pdf.text_extractor import PdfPageText, extract_pdf_text
+from cal_translator.pdf.text_extractor import PdfPageText, PdfWord, extract_pdf_text
 
 _FORMAT_ID = "T50-04002"
 _EXPECTED_RESULT_ROWS = 72
 _ROWS_PER_CHANNEL = 24
-_VALUE = r"[-+]?\d+(?:[.,]\d+)?\s*(?:m?Ω|Ω)"
+_VALUE = r"[-+]?\d+(?:[.,]\d+)?\s*(?:m\s*)?Ω"
 _RESULT_RE = re.compile(
-    rf"^(?:(?P<range>\d+(?:[.,]\d+)?\s*Ω\s*/\s*\d+(?:[.,]\d+)?\s*A)\s+)?"
+    rf"(?:(?P<range>\d+(?:[.,]\d+)?\s*Ω\s*/\s*\d+(?:[.,]\d+)?\s*A)\s+)?"
     rf"(?P<specified>{_VALUE})\s+"
     rf"(?P<measured>{_VALUE})\s+"
     rf"(?P<bias>{_VALUE})\s+"
     rf"(?P<uncertainty>{_VALUE})\s+"
-    r"(?P<coverage>\d+(?:[.,]\d+)?)$",
+    r"(?P<coverage>\d+(?:[.,]\d+)?)\s*$",
+    re.IGNORECASE,
+)
+_TRACEABILITY_RE = re.compile(
+    r"\b(?P<type>AEG|WLN\s+9|DRS-900)\s+"
+    r"(?P<internal>\d+)\s+"
+    r"(?P<calibrated_by>SET-GA[DT])\s+"
+    r"(?P<certificate>[A-Z0-9-]+)\s+"
+    r"(?P<date>\d{4}-\d{2}-\d{2})\b",
     re.IGNORECASE,
 )
 
 
+def _normalize_line(text: str) -> str:
+    return (
+        re.sub(r"\s+", " ", text)
+        .strip()
+        .replace("Ω", "Ω")
+        .replace("−", "-")
+        .replace("–", "-")
+    )
+
+
 def _normalized_lines(text: str) -> list[str]:
-    return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    return [_normalize_line(line) for line in text.splitlines() if line.strip()]
+
+
+def _visual_lines(page: PdfPageText, y_tolerance: float = 3.0) -> list[str]:
+    """Rebuild visible rows from word coordinates instead of PDF object order."""
+    if not page.words:
+        return _normalized_lines(page.text)
+
+    rows: list[dict[str, object]] = []
+    sorted_words = sorted(page.words, key=lambda word: (word.vertical_center, word.x0))
+
+    for word in sorted_words:
+        if not rows:
+            rows.append({"center": word.vertical_center, "words": [word]})
+            continue
+
+        current = rows[-1]
+        current_center = float(current["center"])
+        if abs(word.vertical_center - current_center) <= y_tolerance:
+            row_words = current["words"]
+            assert isinstance(row_words, list)
+            row_words.append(word)
+            current["center"] = sum(item.vertical_center for item in row_words) / len(row_words)
+        else:
+            rows.append({"center": word.vertical_center, "words": [word]})
+
+    output: list[str] = []
+    for row in rows:
+        row_words = row["words"]
+        assert isinstance(row_words, list)
+        ordered = sorted(row_words, key=lambda word: word.x0)
+        line = _normalize_line(" ".join(word.text for word in ordered))
+        if line:
+            output.append(line)
+    return output
 
 
 def _match(text: str, pattern: str) -> str | None:
@@ -71,8 +122,6 @@ def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) ->
 
     dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text)
     if len(dates) >= 3:
-        # In this controlled layout, PyMuPDF emits calibration and issue dates
-        # before the reception date because of their drawing positions.
         certificate.calibration_date = dates[0]
         certificate.issue_date = dates[1]
         certificate.reception_date = dates[2]
@@ -104,8 +153,6 @@ def _extract_page_one(page: PdfPageText, certificate: CalibrationCertificate) ->
 
 
 def _extract_traceability(page: PdfPageText) -> list[TraceabilityEntry]:
-    entries: list[TraceabilityEntry] = []
-    lines = _normalized_lines(page.text)
     equipment_names = [
         "Resistencia de 0,1 mΩ",
         "Resistencia de 100 mΩ",
@@ -113,30 +160,23 @@ def _extract_traceability(page: PdfPageText) -> list[TraceabilityEntry]:
         "Resistencia de 1 mΩ",
         "High Power Resistance Substituter",
     ]
-    row_re = re.compile(
-        r"^(AEG|WLN 9|DRS-900)\s+(\d+)\s+(SET-GAT|SET-GAD)\s+([A-Z0-9-]+)\s+(\d{4}-\d{2}-\d{2})$"
-    )
-    matched_rows = [match for line in lines if (match := row_re.match(line))]
-    for equipment, match in zip(equipment_names, matched_rows):
-        entries.append(
-            TraceabilityEntry(
-                equipment=equipment,
-                type=match.group(1),
-                internal_number=match.group(2),
-                calibrated_by=match.group(3),
-                certificate_number=match.group(4),
-                calibration_date=match.group(5),
-            )
+    matched_rows = [
+        match
+        for line in _visual_lines(page)
+        if (match := _TRACEABILITY_RE.search(line)) is not None
+    ]
+
+    return [
+        TraceabilityEntry(
+            equipment=equipment,
+            type=_normalize_line(match.group("type")),
+            internal_number=match.group("internal"),
+            calibrated_by=match.group("calibrated_by").upper(),
+            certificate_number=match.group("certificate").upper(),
+            calibration_date=match.group("date"),
         )
-    return entries
-
-
-def _result_lines(pages: Iterable[PdfPageText]) -> list[str]:
-    lines: list[str] = []
-    for page in pages:
-        if page.page_number >= 3:
-            lines.extend(_normalized_lines(page.text))
-    return lines
+        for equipment, match in zip(equipment_names, matched_rows)
+    ]
 
 
 def _channel_for_index(index: int) -> str:
@@ -148,37 +188,38 @@ def _extract_results(pages: list[PdfPageText]) -> list[ResultRow]:
     parsed: list[dict[str, str | None]] = []
     pending_range: str | None = None
 
-    for line in _result_lines(pages):
-        match = _RESULT_RE.match(line.replace("Ω", "Ω"))
-        if not match:
+    for page in pages:
+        if page.page_number < 3:
             continue
-        if match.group("range"):
-            pending_range = match.group("range")
-        parsed.append(
-            {
-                "range": match.group("range") or pending_range,
-                "specified": match.group("specified"),
-                "measured": match.group("measured"),
-                "bias": match.group("bias"),
-                "uncertainty": match.group("uncertainty"),
-                "coverage": match.group("coverage"),
-            }
-        )
-
-    rows: list[ResultRow] = []
-    for index, values in enumerate(parsed):
-        rows.append(
-            ResultRow(
-                channel=_channel_for_index(index),
-                range=values["range"],
-                specified_value=str(values["specified"]),
-                average_measured_value=str(values["measured"]),
-                bias=str(values["bias"]),
-                expanded_uncertainty=str(values["uncertainty"]),
-                coverage_factor=str(values["coverage"]),
+        for line in _visual_lines(page):
+            match = _RESULT_RE.search(line)
+            if not match:
+                continue
+            if match.group("range"):
+                pending_range = _normalize_line(match.group("range"))
+            parsed.append(
+                {
+                    "range": pending_range,
+                    "specified": _normalize_line(match.group("specified")),
+                    "measured": _normalize_line(match.group("measured")),
+                    "bias": _normalize_line(match.group("bias")),
+                    "uncertainty": _normalize_line(match.group("uncertainty")),
+                    "coverage": match.group("coverage"),
+                }
             )
+
+    return [
+        ResultRow(
+            channel=_channel_for_index(index),
+            range=values["range"],
+            specified_value=str(values["specified"]),
+            average_measured_value=str(values["measured"]),
+            bias=str(values["bias"]),
+            expanded_uncertainty=str(values["uncertainty"]),
+            coverage_factor=str(values["coverage"]),
         )
-    return rows
+        for index, values in enumerate(parsed)
+    ]
 
 
 def _extract_notes(page: PdfPageText) -> list[str]:
