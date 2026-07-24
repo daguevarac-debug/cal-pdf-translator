@@ -3,6 +3,7 @@ from cal_translator.formats.t50_04002.english_export_v2 import (
     merge_controlled_profile,
     optional_result_columns_are_empty,
     select_results_print_layout,
+    title_presentation,
     traceability_presentation,
 )
 
@@ -40,19 +41,24 @@ def test_controlled_profile_adds_residual_spanish_validation() -> None:
         },
     }
     overrides = {
-        "profile_version": 3,
+        "profile_version": 4,
         "pdf_validation": {
-            "required_phrases": ["Internal Code", "Calibration Laboratory"],
+            "required_phrases": [
+                "Internal Code",
+                "Certificate Number",
+                "Calibration Laboratory",
+            ],
             "forbidden_phrases": ["Código Interno", "Página"],
         },
     }
 
     merged = merge_controlled_profile(original, overrides)
 
-    assert merged["profile_version"] == 3
+    assert merged["profile_version"] == 4
     assert merged["pdf_validation"]["required_phrases"] == [
         "Calibration Certificate",
         "Internal Code",
+        "Certificate Number",
         "Calibration Laboratory",
     ]
     assert merged["pdf_validation"]["forbidden_phrases"] == [
@@ -80,6 +86,22 @@ def test_information_header_preserves_logo_and_laboratory_identity() -> None:
     assert "Calibration Laboratory" in header
     assert "Medellín Highway, km 8.5 - South Side" in header
     assert header.endswith("Tenjo - Cundinamarca")
+
+
+def test_title_layout_labels_one_visible_certificate_number() -> None:
+    layout = title_presentation(
+        {
+            "title_layout": {
+                "certificate_number_label": "Certificate Number:",
+                "duplicate_certificate_number_format": ";;;",
+            }
+        }
+    )
+
+    assert layout == {
+        "certificate_number_label": "Certificate Number:",
+        "duplicate_certificate_number_format": ";;;",
+    }
 
 
 def test_traceability_layout_has_room_for_wrapped_equipment_names() -> None:
