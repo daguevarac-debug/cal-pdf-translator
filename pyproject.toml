@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cal-pdf-translator"
+version = "0.2.0"
+description = "Generate English calibration certificates from controlled Excel templates."
+requires-python = ">=3.11"
+dependencies = [
+  "pywin32>=306; platform_system == 'Windows'",
+]
+
+[project.scripts]
+cal-translator = "cal_translator.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
