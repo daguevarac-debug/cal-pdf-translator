@@ -1,30 +1,26 @@
-profile_version: 6
+profile_version: 7
 
 internal_code_number_format: '"Internal Code: "00000000'
 right_footer: "Page &[Page] of &[Pages]"
 
-information_text_box:
-  name: "CAL_English_Laboratory_Block"
-  anchor: "B1"
-  width: 360
-  height: 58
-  left_offset: -50
-  top_offset: 8
-  font_name: "Arial"
-  font_size: 7.5
-  text_margin_left: 50
-  text_margin_right: 0
-  text_margin_top: 2
-  text_margin_bottom: 0
-  white_fill: true
-  text: |-
-    Siemens Energy is a trademark licensed by Siemens AG.
-    Calibration Laboratory
-    Medellín Highway, km 8.5 - South Side
-    Tenjo - Cundinamarca
-  row_heights:
-    1: 24
-    2: 28
+information_cells:
+  - range: "B1:E1"
+    row: 1
+    row_height: 12
+    font_name: "Arial"
+    font_size: 7
+    bold: false
+    text: "Siemens Energy is a trademark licensed by Siemens AG."
+  - range: "B2:E2"
+    row: 2
+    row_height: 34
+    font_name: "Arial"
+    font_size: 9
+    bold: false
+    text: |-
+      Calibration Laboratory
+      Medellín Highway, km 8.5 - South Side
+      Tenjo - Cundinamarca
 
 title_layout:
   certificate_number_label: "Certificate Number:"
