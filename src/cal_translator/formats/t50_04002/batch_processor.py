@@ -7,7 +7,18 @@ from typing import Any
 
 from cal_translator.formats.t50_04002.english_export_v3 import translate_and_export
 from cal_translator.formats.t50_04002.extractor import extract_certificate, write_extraction
+from cal_translator.formats.t50_04002.temperature_english_export import (
+    translate_temperature_and_export,
+)
+from cal_translator.formats.t50_04002.temperature_extractor import (
+    extract_temperature_certificate,
+    is_temperature_certificate,
+)
+from cal_translator.formats.t50_04002.temperature_workbook_writer import (
+    build_temperature_workbook,
+)
 from cal_translator.formats.t50_04002.workbook_writer_v2 import build_workbook_prototype
+from cal_translator.pdf.text_extractor import extract_pdf_text
 
 FORMAT_ID = "T50-04002"
 _MAX_RANGE_SIZE = 500
@@ -62,6 +73,66 @@ def _write_report(report: dict[str, Any], report_path: Path) -> None:
     )
 
 
+def _extract_by_measurement_kind(pdf_path: Path):
+    pages = extract_pdf_text(pdf_path)
+    if is_temperature_certificate(pages):
+        return extract_temperature_certificate(pdf_path)
+    return extract_certificate(pdf_path)
+
+
+def _build_by_measurement_kind(
+    measurement_kind: str,
+    template_path: Path,
+    extraction_path: Path,
+    working_path: Path,
+    *,
+    overwrite: bool,
+):
+    if measurement_kind == "temperature":
+        return build_temperature_workbook(
+            template_path,
+            extraction_path,
+            working_path,
+            format_id=FORMAT_ID,
+            overwrite=overwrite,
+        )
+    return build_workbook_prototype(
+        template_path,
+        extraction_path,
+        working_path,
+        format_id=FORMAT_ID,
+        overwrite=overwrite,
+    )
+
+
+def _translate_by_measurement_kind(
+    measurement_kind: str,
+    working_path: Path,
+    extraction_path: Path,
+    english_workbook: Path,
+    english_pdf: Path,
+    *,
+    overwrite: bool,
+):
+    if measurement_kind == "temperature":
+        return translate_temperature_and_export(
+            working_path,
+            extraction_path,
+            english_workbook,
+            english_pdf,
+            format_id=FORMAT_ID,
+            overwrite=overwrite,
+        )
+    return translate_and_export(
+        working_path,
+        extraction_path,
+        english_workbook,
+        english_pdf,
+        format_id=FORMAT_ID,
+        overwrite=overwrite,
+    )
+
+
 def _process_one(
     certificate_number: str,
     pdf_path: Path,
@@ -82,8 +153,10 @@ def _process_one(
     }
 
     try:
-        extracted = extract_certificate(pdf_path)
+        extracted = _extract_by_measurement_kind(pdf_path)
         extraction_path = write_extraction(extracted, certificate_dir)
+        measurement_kind = extracted.measurement_kind or "resistance"
+        result["measurement_kind"] = measurement_kind
         result["extraction_json"] = str(extraction_path.resolve())
         result["source_pages"] = extracted.source_pages
         result["traceability_rows"] = len(extracted.traceability)
@@ -91,7 +164,9 @@ def _process_one(
         result["channel_counts"] = {
             channel: sum(row.channel == channel for row in extracted.results)
             for channel in ("A", "B", "C")
+            if any(row.channel == channel for row in extracted.results)
         }
+        result["source_issues"] = list(extracted.source_issues)
 
         warnings = list(extracted.extraction_warnings)
         if extracted.certificate_number != certificate_number:
@@ -107,11 +182,11 @@ def _process_one(
             )
 
         working_path = certificate_dir / f"{certificate_number}_WORKING.xlsx"
-        build_report, build_report_path = build_workbook_prototype(
+        build_report, build_report_path = _build_by_measurement_kind(
+            measurement_kind,
             template_path,
             extraction_path,
             working_path,
-            format_id=FORMAT_ID,
             overwrite=overwrite,
         )
         result["working_workbook"] = str(working_path.resolve())
@@ -122,12 +197,12 @@ def _process_one(
 
         english_workbook = certificate_dir / f"{certificate_number}_EN_TRANSLATION.xlsx"
         english_pdf = certificate_dir / f"{certificate_number}_EN_TRANSLATION.pdf"
-        translation_report, translation_report_path = translate_and_export(
+        translation_report, translation_report_path = _translate_by_measurement_kind(
+            measurement_kind,
             working_path,
             extraction_path,
             english_workbook,
             english_pdf,
-            format_id=FORMAT_ID,
             overwrite=overwrite,
         )
         result["english_workbook"] = str(english_workbook.resolve())
