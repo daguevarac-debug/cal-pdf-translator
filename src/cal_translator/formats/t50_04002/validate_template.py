@@ -108,6 +108,13 @@ def _read_cell(workbook: Any, sheet_name: str, address: str) -> Any:
     return workbook.Worksheets(sheet_name).Range(address)
 
 
+def _range_address(com_range: Any) -> str:
+    address_member = com_range.Address
+    if callable(address_member):
+        return str(address_member(False, False))
+    return str(address_member).replace("$", "")
+
+
 def validate_template(template_path: Path, format_id: str = FORMAT_ID) -> dict[str, Any]:
     if format_id != FORMAT_ID:
         raise RuntimeError(f"Unsupported format: {format_id}. Expected {FORMAT_ID}.")
@@ -266,7 +273,7 @@ def validate_template(template_path: Path, format_id: str = FORMAT_ID) -> dict[s
                 )
                 continue
             try:
-                resolved = workbook.Worksheets(sheet_name).Range(address).Address(False, False)
+                resolved = _range_address(workbook.Worksheets(sheet_name).Range(address))
                 passed = bool(resolved)
                 actual = f"{sheet_name}!{resolved}" if resolved else None
             except Exception as exc:  # noqa: BLE001
