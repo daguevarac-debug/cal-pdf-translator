@@ -1,4 +1,5 @@
 from cal_translator.formats.t50_04002.english_export_v2 import (
+    merge_controlled_profile,
     optional_result_columns_are_empty,
     select_results_print_layout,
 )
@@ -26,3 +27,34 @@ def test_nonempty_optional_columns_are_preserved_and_fitted_to_width() -> None:
         "print_area": "$B$1:$L$102",
         "fit_to_one_page_wide": True,
     }
+
+
+def test_controlled_profile_adds_residual_spanish_validation() -> None:
+    original = {
+        "profile_version": 1,
+        "pdf_validation": {
+            "required_phrases": ["Calibration Certificate"],
+            "forbidden_phrases": ["Certificado de Calibración"],
+        },
+    }
+    overrides = {
+        "profile_version": 2,
+        "pdf_validation": {
+            "required_phrases": ["Internal Code"],
+            "forbidden_phrases": ["Código Interno", "Página"],
+        },
+    }
+
+    merged = merge_controlled_profile(original, overrides)
+
+    assert merged["profile_version"] == 2
+    assert merged["pdf_validation"]["required_phrases"] == [
+        "Calibration Certificate",
+        "Internal Code",
+    ]
+    assert merged["pdf_validation"]["forbidden_phrases"] == [
+        "Certificado de Calibración",
+        "Código Interno",
+        "Página",
+    ]
+    assert original["profile_version"] == 1
