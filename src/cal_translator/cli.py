@@ -4,7 +4,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from cal_translator.excel.template_inventory import inspect_template, write_inventory
+from cal_translator.excel.template_inventory_v2 import inspect_template, write_inventory
 
 
 def _build_parser() -> argparse.ArgumentParser:
