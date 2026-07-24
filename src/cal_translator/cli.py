@@ -4,7 +4,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from cal_translator.excel.template_inventory_v2 import inspect_template, write_inventory
+from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- JSON: {json_path.resolve()}")
             print(f"- Markdown: {markdown_path.resolve()}")
             print(f"- Worksheets: {inventory['template']['worksheets_count']}")
+            print(f"- Inventory schema: {inventory['schema_version']}")
             return 0
     except (FileNotFoundError, RuntimeError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
