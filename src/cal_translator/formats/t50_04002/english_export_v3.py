@@ -9,6 +9,15 @@ _XL_LEFT = -4131
 _XL_TOP = -4160
 _LOGO_ONLY_HEADER = "&G"
 _LEGACY_SHAPE_NAME = "CAL_English_Laboratory_Block"
+_CERTIFICATE_SHEETS = ("Información", "Resultados")
+_HEADER_FOOTER_PROPERTIES = (
+    "LeftHeader",
+    "CenterHeader",
+    "RightHeader",
+    "LeftFooter",
+    "CenterFooter",
+    "RightFooter",
+)
 
 
 def laboratory_cell_specs(overrides: dict[str, Any]) -> list[dict[str, Any]]:
@@ -43,6 +52,43 @@ def laboratory_cell_specs(overrides: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return specs
+
+
+def certificate_sheet_names() -> tuple[str, str]:
+    """Return the only worksheets that form the published certificate."""
+    return _CERTIFICATE_SHEETS
+
+
+def translate_certificate_headers_and_footers(
+    workbook: Any,
+    profile: dict[str, Any],
+) -> int:
+    """Translate headers and footers only on the two published certificate sheets."""
+    replacements = [
+        (str(item["source"]), str(item["target"]))
+        for item in profile.get("header_footer_replacements") or []
+    ]
+    changed = 0
+    for sheet_name in certificate_sheet_names():
+        sheet = v2.legacy._get_sheet(workbook, sheet_name)
+        page_setup = v2.retry_com_call(lambda sheet=sheet: sheet.PageSetup)
+        for property_name in _HEADER_FOOTER_PROPERTIES:
+            current = str(
+                v2.retry_com_call(
+                    lambda page_setup=page_setup, property_name=property_name: getattr(
+                        page_setup,
+                        property_name,
+                    )
+                )
+                or ""
+            )
+            updated = current
+            for source, target in replacements:
+                updated = updated.replace(source, target)
+            if updated != current:
+                v2.set_com_property(page_setup, property_name, updated)
+                changed += 1
+    return changed
 
 
 def _set_logo_only_header(sheet: Any) -> bool:
@@ -146,9 +192,13 @@ def translate_and_export(
     format_id: str = v2.legacy.FORMAT_ID,
     overwrite: bool = False,
 ) -> tuple[dict[str, Any], Path]:
-    """Run v2 export while rendering the first-page identity in cells."""
+    """Run v2 export with cell-based identity and certificate-only page metadata."""
     original_presentation = v2.configure_information_presentation
+    original_header_footer_translator = v2.legacy._translate_headers_and_footers
     v2.configure_information_presentation = configure_information_presentation
+    v2.legacy._translate_headers_and_footers = (
+        translate_certificate_headers_and_footers
+    )
     try:
         return v2.translate_and_export(
             source_workbook,
@@ -160,3 +210,6 @@ def translate_and_export(
         )
     finally:
         v2.configure_information_presentation = original_presentation
+        v2.legacy._translate_headers_and_footers = (
+            original_header_footer_translator
+        )
