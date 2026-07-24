@@ -1,0 +1,11 @@
+profile_version: 2
+
+internal_code_number_format: '"Internal Code: "00000000'
+right_footer: "Page &P of &N"
+
+pdf_validation:
+  required_phrases:
+    - "Internal Code"
+  forbidden_phrases:
+    - "Código Interno"
+    - "Página"
