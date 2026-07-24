@@ -139,14 +139,42 @@ def traceability_presentation(overrides: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def title_presentation(overrides: dict[str, Any]) -> dict[str, str]:
+    title = overrides.get("title_layout") or {}
+    certificate_label = str(title.get("certificate_number_label") or "").strip()
+    duplicate_format = str(title.get("duplicate_certificate_number_format") or "").strip()
+    if not certificate_label or not duplicate_format:
+        raise RuntimeError(
+            "Controlled title layout must define the certificate label and duplicate-value format."
+        )
+    return {
+        "certificate_number_label": certificate_label,
+        "duplicate_certificate_number_format": duplicate_format,
+    }
+
+
 def configure_information_presentation(
     workbook: Any, overrides: dict[str, Any]
 ) -> dict[str, Any]:
-    """Restore the first-page laboratory header and make traceability rows legible."""
+    """Restore the laboratory header and make first-page tables and title legible."""
     information = legacy._get_sheet(workbook, "Información")
     page_setup = retry_com_call(lambda: information.PageSetup)
     left_header = information_left_header_text(overrides)
     set_com_property(page_setup, "LeftHeader", left_header)
+
+    title_layout = title_presentation(overrides)
+    certificate_label = retry_com_call(lambda: information.Range("B4"))
+    set_com_property(
+        certificate_label,
+        "Value2",
+        title_layout["certificate_number_label"],
+    )
+    duplicate_certificate = retry_com_call(lambda: information.Range("B6"))
+    set_com_property(
+        duplicate_certificate,
+        "NumberFormat",
+        title_layout["duplicate_certificate_number_format"],
+    )
 
     layout = traceability_presentation(overrides)
     traceability_range = retry_com_call(lambda: information.Range("B69:H73"))
@@ -163,6 +191,10 @@ def configure_information_presentation(
 
     return {
         "left_header": left_header,
+        "certificate_number_label": title_layout["certificate_number_label"],
+        "duplicate_certificate_number_format": title_layout[
+            "duplicate_certificate_number_format"
+        ],
         "equipment_font_size": layout["equipment_font_size"],
         "row_heights": layout["row_heights"],
     }
