@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from cal_translator.excel.template_inventory_v3 import inspect_template, write_inventory
+from cal_translator.formats.t50_04002.english_export_v3 import translate_and_export
 from cal_translator.formats.t50_04002.extractor import extract_certificate, write_extraction
 from cal_translator.formats.t50_04002.validate_template import (
     validate_template,
@@ -92,6 +93,49 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Replace an existing output workbook",
     )
 
+    translate_parser = subparsers.add_parser(
+        "translate-export",
+        help=(
+            "Create an American English copy of an expanded T50-04002 workbook and export "
+            "the certificate sheets to PDF through Microsoft Excel."
+        ),
+    )
+    translate_parser.add_argument(
+        "--workbook",
+        type=Path,
+        required=True,
+        help="Path to the validated expanded workbook",
+    )
+    translate_parser.add_argument(
+        "--data",
+        type=Path,
+        required=True,
+        help="Path to the extracted certificate JSON used to build the workbook",
+    )
+    translate_parser.add_argument(
+        "--format",
+        dest="format_id",
+        required=True,
+        help="Controlled document format, currently T50-04002",
+    )
+    translate_parser.add_argument(
+        "--output-workbook",
+        type=Path,
+        required=True,
+        help="Output path for the English .xlsx workbook",
+    )
+    translate_parser.add_argument(
+        "--output-pdf",
+        type=Path,
+        required=True,
+        help="Output path for the English certificate PDF",
+    )
+    translate_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing English workbook and PDF outputs",
+    )
+
     return parser
 
 
@@ -171,6 +215,27 @@ def main(argv: list[str] | None = None) -> int:
             print(f"- Notes written: {report['notes_written']}")
             print(f"- Postflight valid: {str(report['postflight_valid']).lower()}")
             return 0 if report["postflight_valid"] else 1
+
+        if args.command == "translate-export":
+            report, report_path = translate_and_export(
+                args.workbook,
+                args.data,
+                args.output_workbook,
+                args.output_pdf,
+                format_id=args.format_id,
+                overwrite=args.overwrite,
+            )
+            pdf_validation = report["pdf_validation"]
+            print("English translation and PDF export completed")
+            print(f"- Workbook: {Path(report['output_workbook']).resolve()}")
+            print(f"- PDF: {Path(report['output_pdf']).resolve()}")
+            print(f"- Report: {report_path.resolve()}")
+            print(f"- Locale: {report['locale']}")
+            print(f"- Translation operations: {report['translation_operations']}")
+            print(f"- PDF pages: {pdf_validation['page_count']}")
+            print(f"- Workbook valid: {str(report['workbook_validation']['valid']).lower()}")
+            print(f"- PDF valid: {str(pdf_validation['valid']).lower()}")
+            return 0 if report["valid"] else 1
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         parser.exit(2, f"ERROR: {exc}\n")
 
